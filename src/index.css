@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", "Noto Serif Devanagari", Georgia, serif;
+  --font-devanagari: "Noto Serif Devanagari", "Noto Sans Devanagari", serif;
+  --font-sans: "Manrope", "Noto Sans Devanagari", system-ui, sans-serif;
+  --color-temple-red: #5A1717;
+  --color-saffron: #C56A18;
+  --color-antique-gold: #B88935;
+  --color-warm-ivory: #FBF6EA;
+  --color-stone-beige: #EDE3D1;
+  --color-deep-charcoal: #211D19;
+  --color-temple-dark: #241512;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #FBF6EA;
+  color: #211D19;
+}
+
+.font-heading {
+  font-family: var(--font-serif);
+}
+
+.font-sanskrit {
+  font-family: var(--font-devanagari);
+}
+
+/* Sacred Traditional Border & Motif accents */
+.border-gold-subtle {
+  border-color: rgba(184, 137, 53, 0.25);
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #B88935 0%, #D4AF37 50%, #996B1E 100%);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #B88935 0%, #D4AF37 50%, #8A5A14 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-saffron-gradient {
+  background: linear-gradient(135deg, #C56A18 0%, #E27E23 50%, #9F4D0E 100%);
+}
+
+.sacred-mandala-pattern {
+  background-image: radial-gradient(rgba(184, 137, 53, 0.08) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+

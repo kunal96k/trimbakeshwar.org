@@ -1,0 +1,6 @@
+{
+  "name": "Shri Trimbakeshwar Jyotirlinga",
+  "description": "Sacred pilgrimage portal and traditional Puja booking for Shri Trimbakeshwar Jyotirlinga, Nashik, Maharashtra.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
