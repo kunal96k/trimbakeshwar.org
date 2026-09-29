@@ -63,7 +63,10 @@ export function HomePage() {
       />
 
       {/* 9. Tamrapatra Tradition & Purohit Heritage Section */}
-      <TraditionSection currentLang={currentLang} />
+      <TraditionSection
+        currentLang={currentLang}
+        onOpenBooking={(vidhiId) => openBooking(vidhiId)}
+      />
 
       {/* 10. Sacred Places Around Trimbakeshwar */}
       <SacredPlacesSection currentLang={currentLang} />

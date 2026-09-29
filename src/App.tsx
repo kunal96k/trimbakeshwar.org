@@ -24,16 +24,33 @@ import { GalleryPage } from './pages/GalleryPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { FaqsPage } from './pages/FaqsPage';
+import { AdminPage } from './pages/AdminPage';
 
 function MainRouter() {
   const {
     currentRoute,
     currentLang,
     isBookingOpen,
+    openBooking,
     closeBooking,
     selectedPujaForBooking,
     selectedGurujiForBooking,
   } = useNavigation();
+
+  // If currently on admin or login route, render full-screen Admin Dashboard directly
+  const isAdminOrLoginRoute =
+    currentRoute === '/admin' ||
+    currentRoute.startsWith('/admin') ||
+    currentRoute === '/login' ||
+    currentRoute.startsWith('/login');
+
+  if (isAdminOrLoginRoute) {
+    const isLoginDirect =
+      currentRoute === '/login' ||
+      currentRoute === '/admin/login' ||
+      (typeof window !== 'undefined' && window.location.hash.toLowerCase().includes('login'));
+    return <AdminPage initialOpenLogin={isLoginDirect} />;
+  }
 
   // Scroll to top upon navigating to any route
   useEffect(() => {
@@ -118,7 +135,7 @@ function MainRouter() {
   return (
     <div className="min-h-screen bg-[#FBF6EA] text-[#211D19] selection:bg-[#C56A18] selection:text-white flex flex-col font-sans antialiased pb-16 md:pb-0">
       {/* Top Header with MegaMenu and Language selector */}
-      <Header />
+      <Header onOpenBooking={openBooking} />
 
       {/* Main Routed Page Content */}
       <main className="flex-grow">

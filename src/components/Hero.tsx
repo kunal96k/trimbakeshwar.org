@@ -111,10 +111,11 @@ export function Hero({ currentLang, onOpenBooking }: HeroProps) {
           <button
             id="hero-cta-book-puja"
             onClick={onOpenBooking}
-            className="w-fit px-8 py-3.5 rounded-full text-sm sm:text-base font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] hover:from-[#6D1B1B] hover:to-[#B88935] border border-amber-300/40 shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-[0.98]"
+            className="w-fit px-8 py-3.5 rounded-full text-sm sm:text-base font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] hover:from-[#6D1B1B] hover:to-[#B88935] border border-amber-300/40 shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2.5 active:scale-[0.98] whitespace-nowrap shrink-0"
+            style={{ whiteSpace: 'nowrap' }}
           >
             <TrishulIcon className="w-4 h-4 text-amber-200 shrink-0" />
-            <span>{t.heroCtaBook}</span>
+            <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{t.heroCtaBook}</span>
           </button>
         </div>
 

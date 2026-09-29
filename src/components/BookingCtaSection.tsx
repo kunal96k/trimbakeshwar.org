@@ -83,20 +83,22 @@ export function BookingCtaSection({ currentLang, onOpenBooking, onContactGuruji 
               <button
                 id="booking-cta-main-btn"
                 onClick={onOpenBooking}
-                className="w-full sm:w-auto px-8 py-4 rounded-full text-sm sm:text-base font-bold text-[#211D19] bg-gradient-to-r from-[#FFD54F] via-[#FFCA28] to-[#FFA000] hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-8 py-4 rounded-full text-sm sm:text-base font-bold text-[#211D19] bg-gradient-to-r from-[#FFD54F] via-[#FFCA28] to-[#FFA000] hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+                style={{ whiteSpace: 'nowrap' }}
               >
                 <TrishulIcon className="w-4 h-4 text-[#211D19] shrink-0" />
-                <span>{t.bookFlowBtn}</span>
-                <ArrowRight className="w-4 h-4" />
+                <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{t.bookFlowBtn}</span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
               </button>
 
               <button
                 id="booking-cta-contact-guruji"
                 onClick={onContactGuruji}
-                className="w-full sm:w-auto px-7 py-4 rounded-full text-sm sm:text-base font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-7 py-4 rounded-full text-sm sm:text-base font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+                style={{ whiteSpace: 'nowrap' }}
               >
-                <PhoneCall className="w-4 h-4 text-amber-300" />
-                <span>{t.talkToGurujiBtn}</span>
+                <PhoneCall className="w-4 h-4 text-amber-300 shrink-0" />
+                <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{t.talkToGurujiBtn}</span>
               </button>
             </div>
 

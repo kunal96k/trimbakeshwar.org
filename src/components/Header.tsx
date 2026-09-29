@@ -29,18 +29,19 @@ import {
 } from 'lucide-react';
 import { SacredMandala, TrishulIcon, LotusIcon, OmSymbol, NagDevtaIcon, VivahKnotIcon, RudrakshaMalaIcon, TempleIcon } from './Motifs';
 
-type MobileAccordionSection = 'temple' | 'puja' | 'lang' | null;
+type MobileAccordionSection = 'temple' | 'puja' | 'more' | 'lang' | null;
 
 interface HeaderProps {
   onOpenBooking?: () => void;
 }
 
 export function Header({ onOpenBooking }: HeaderProps) {
-  const { currentRoute, navigate, currentLang, setLanguage, setIsSearchModalOpen } = useNavigation();
+  const { currentRoute, navigate, currentLang, setLanguage, setIsSearchModalOpen, openBooking } = useNavigation();
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [pujaMenuOpen, setPujaMenuOpen] = useState(false);
   const [templeMenuOpen, setTempleMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMobileAccordion, setActiveMobileAccordion] = useState<MobileAccordionSection>(null);
@@ -51,6 +52,7 @@ export function Header({ onOpenBooking }: HeaderProps) {
 
   const pujaMenuRef = useRef<HTMLDivElement>(null);
   const templeMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
   // Determine if header should be in solid ivory state (always solid on inner pages or when scrolled)
@@ -85,6 +87,9 @@ export function Header({ onOpenBooking }: HeaderProps) {
       if (templeMenuRef.current && !templeMenuRef.current.contains(event.target as Node)) {
         setTempleMenuOpen(false);
       }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
       if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setLangDropdownOpen(false);
       }
@@ -94,6 +99,7 @@ export function Header({ onOpenBooking }: HeaderProps) {
       if (e.key === 'Escape') {
         setPujaMenuOpen(false);
         setTempleMenuOpen(false);
+        setMoreMenuOpen(false);
         setLangDropdownOpen(false);
         setMobileMenuOpen(false);
         setActiveMobileAccordion(null);
@@ -112,6 +118,7 @@ export function Header({ onOpenBooking }: HeaderProps) {
     navigate(route);
     setPujaMenuOpen(false);
     setTempleMenuOpen(false);
+    setMoreMenuOpen(false);
     setMobileMenuOpen(false);
     setActiveMobileAccordion(null);
   };
@@ -122,7 +129,7 @@ export function Header({ onOpenBooking }: HeaderProps) {
     if (onOpenBooking) {
       onOpenBooking();
     } else {
-      navigate('/booking');
+      openBooking();
     }
   };
 
@@ -361,52 +368,124 @@ export function Header({ onOpenBooking }: HeaderProps) {
             )}
           </div>
 
-          {/* Guruji */}
-          <button
-            onClick={() => handleNavClick('/guruji')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
-              currentRoute === '/guruji'
-                ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
-                : isSolidHeader
-                ? 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-                : 'text-stone-200 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            {navT.guruji}
-          </button>
+          {/* More Dropdown (Guruji, Articles, Gallery, FAQs) */}
+          <div className="relative" ref={moreMenuRef}>
+            <button
+              onClick={() => {
+                setMoreMenuOpen(!moreMenuOpen);
+                setPujaMenuOpen(false);
+                setTempleMenuOpen(false);
+                setLangDropdownOpen(false);
+              }}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors cursor-pointer ${
+                currentRoute === '/guruji' ||
+                currentRoute === '/articles' ||
+                currentRoute.startsWith('/articles/') ||
+                currentRoute === '/gallery' ||
+                currentRoute === '/faqs' ||
+                moreMenuOpen
+                  ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
+                  : isSolidHeader
+                  ? 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                  : 'text-stone-200 hover:bg-white/10 hover:text-white'
+              }`}
+              aria-expanded={moreMenuOpen}
+            >
+              <span>{navT.more}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${moreMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Articles */}
-          <button
-            onClick={() => handleNavClick('/articles')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
-              currentRoute === '/articles' || currentRoute.startsWith('/articles/')
-                ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
-                : isSolidHeader
-                ? 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-                : 'text-stone-200 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            {navT.articles}
-          </button>
+            {/* More Dropdown Menu */}
+            {moreMenuOpen && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-[#FBF6EA] border border-[#B88935]/30 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-[#5A1717] uppercase tracking-wider border-b border-[#B88935]/15 mb-1 flex items-center justify-between">
+                  <span>श्री तीर्थक्षेत्र सेवा</span>
+                  <span className="text-[9px] text-[#B88935] font-mono">Trimbak Seva</span>
+                </div>
 
-          {/* Gallery */}
-          <button
-            onClick={() => handleNavClick('/gallery')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
-              currentRoute === '/gallery'
-                ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
-                : isSolidHeader
-                ? 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-                : 'text-stone-200 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            {navT.gallery}
-          </button>
+                {/* Gurujis */}
+                <button
+                  onClick={() => handleNavClick('/guruji')}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between group transition-colors cursor-pointer ${
+                    currentRoute === '/guruji'
+                      ? 'bg-[#EDE3D1] text-[#5A1717] font-semibold'
+                      : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Users className="w-4 h-4 text-[#C56A18] shrink-0" />
+                    <div>
+                      <div className="font-semibold">{navT.guruji}</div>
+                      <div className="text-[10px] text-stone-500">Authorized Vedic Purohits</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-[#5A1717] transition-colors" />
+                </button>
+
+                {/* Articles */}
+                <button
+                  onClick={() => handleNavClick('/articles')}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between group transition-colors cursor-pointer ${
+                    currentRoute === '/articles' || currentRoute.startsWith('/articles/')
+                      ? 'bg-[#EDE3D1] text-[#5A1717] font-semibold'
+                      : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BookOpen className="w-4 h-4 text-[#B88935] shrink-0" />
+                    <div>
+                      <div className="font-semibold">{navT.articles}</div>
+                      <div className="text-[10px] text-stone-500">Puranic & Vidhi Knowledge</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-[#5A1717] transition-colors" />
+                </button>
+
+                {/* Gallery */}
+                <button
+                  onClick={() => handleNavClick('/gallery')}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between group transition-colors cursor-pointer ${
+                    currentRoute === '/gallery'
+                      ? 'bg-[#EDE3D1] text-[#5A1717] font-semibold'
+                      : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ImageIcon className="w-4 h-4 text-[#C56A18] shrink-0" />
+                    <div>
+                      <div className="font-semibold">{navT.gallery}</div>
+                      <div className="text-[10px] text-stone-500">Sacred Tirth Photo Gallery</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-[#5A1717] transition-colors" />
+                </button>
+
+                {/* FAQs */}
+                <button
+                  onClick={() => handleNavClick('/faqs')}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between group transition-colors cursor-pointer ${
+                    currentRoute === '/faqs'
+                      ? 'bg-[#EDE3D1] text-[#5A1717] font-semibold'
+                      : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <HelpCircle className="w-4 h-4 text-stone-500 shrink-0" />
+                    <div>
+                      <div className="font-semibold">{navT.faqs}</div>
+                      <div className="text-[10px] text-stone-500">Pilgrim Questions & Answers</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-[#5A1717] transition-colors" />
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* About */}
           <button
             onClick={() => handleNavClick('/about')}
-            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors cursor-pointer ${
               currentRoute === '/about'
                 ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
                 : isSolidHeader
@@ -416,10 +495,24 @@ export function Header({ onOpenBooking }: HeaderProps) {
           >
             {navT.about}
           </button>
+
+          {/* Contact */}
+          <button
+            onClick={() => handleNavClick('/contact')}
+            className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-colors cursor-pointer ${
+              currentRoute === '/contact'
+                ? 'text-[#5A1717] font-semibold bg-[#EDE3D1]/80'
+                : isSolidHeader
+                ? 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
+                : 'text-stone-200 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            {navT.contact}
+          </button>
         </nav>
 
         {/* Right Action Icons & Book Button: Language Selector, Search, Book Puja */}
-        <div className="flex items-center space-x-2 sm:space-x-2.5">
+        <div className="flex items-center space-x-2 sm:space-x-2.5 shrink-0">
           {/* Language Selector Dropdown */}
           <div className="relative" ref={langDropdownRef}>
             <button
@@ -523,14 +616,15 @@ export function Header({ onOpenBooking }: HeaderProps) {
             </kbd>
           </button>
 
-          {/* Desktop Book Puja Button */}
+          {/* Desktop Book Puja Button - Always on a single line without text wrap */}
           <button
             id="desktop-book-puja-btn"
             onClick={handleBookClick}
-            className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] hover:from-[#6D1B1B] hover:to-[#B88935] border border-amber-300/40 shadow-sm hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] active:scale-95 transition-all cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] hover:from-[#6D1B1B] hover:to-[#B88935] border border-amber-300/40 shadow-sm hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+            style={{ whiteSpace: 'nowrap' }}
           >
             <TrishulIcon className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-            <span>{navT.bookPuja}</span>
+            <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{navT.bookPuja}</span>
           </button>
 
           {/* Mobile Hamburger Toggle */}
@@ -888,50 +982,112 @@ export function Header({ onOpenBooking }: HeaderProps) {
             </div>
           </div>
 
-          {/* Direct Navigation Links */}
+          {/* Accordion 3: More / श्री तीर्थक्षेत्र सेवा (Guruji, Articles, Gallery, FAQs) */}
+          <div className="rounded-2xl border border-[#B88935]/20 bg-[#F4ECDC]/40 overflow-hidden transition-all">
+            <button
+              type="button"
+              onClick={() => toggleMobileAccordion('more')}
+              className={`w-full flex items-center justify-between p-3 text-left transition-colors cursor-pointer ${
+                activeMobileAccordion === 'more'
+                  ? 'bg-[#EDE3D1] text-[#5A1717]'
+                  : 'hover:bg-[#EDE3D1]/60 text-[#5A1717]'
+              }`}
+              aria-expanded={activeMobileAccordion === 'more'}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="w-7 h-7 rounded-lg bg-[#5A1717]/10 text-[#5A1717] flex items-center justify-center text-xs shrink-0">
+                  <Sparkles className="w-4 h-4 text-[#C56A18]" />
+                </span>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider font-heading">
+                    {navT.more}
+                  </div>
+                  <div className="text-[10px] text-stone-500 font-devanagari">
+                    {currentLang === 'mr' ? 'पुरोहित, धार्मिक लेख, गॅलरी व प्रश्न' : currentLang === 'hi' ? 'पुरोहित, लेख, चित्र दीर्घा एवं प्रश्न' : 'Gurujis, Articles, Gallery & FAQs'}
+                  </div>
+                </div>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-stone-500 transition-transform duration-300 shrink-0 ${
+                  activeMobileAccordion === 'more' ? 'rotate-180 text-[#5A1717]' : ''
+                }`}
+              />
+            </button>
+
+            {/* Smooth CSS Grid Height Transition */}
+            <div
+              className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                activeMobileAccordion === 'more' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              }`}
+            >
+              <div className="overflow-hidden">
+                <div className="px-3 pb-3 pt-1 space-y-1 border-t border-[#B88935]/15">
+                  <button
+                    onClick={() => handleNavClick('/guruji')}
+                    className={`w-full text-left py-2 px-2.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      currentRoute === '/guruji'
+                        ? 'bg-[#5A1717] text-white font-medium'
+                        : 'text-stone-700 hover:text-[#5A1717] hover:bg-[#EDE3D1]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-[#C56A18] shrink-0" />
+                      <span>{navT.guruji}</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('/articles')}
+                    className={`w-full text-left py-2 px-2.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      currentRoute === '/articles' || currentRoute.startsWith('/articles/')
+                        ? 'bg-[#5A1717] text-white font-medium'
+                        : 'text-stone-700 hover:text-[#5A1717] hover:bg-[#EDE3D1]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5 text-[#B88935] shrink-0" />
+                      <span>{navT.articles}</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('/gallery')}
+                    className={`w-full text-left py-2 px-2.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      currentRoute === '/gallery'
+                        ? 'bg-[#5A1717] text-white font-medium'
+                        : 'text-stone-700 hover:text-[#5A1717] hover:bg-[#EDE3D1]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#C56A18] shrink-0" />
+                      <span>{navT.gallery}</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+
+                  <button
+                    onClick={() => handleNavClick('/faqs')}
+                    className={`w-full text-left py-2 px-2.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      currentRoute === '/faqs'
+                        ? 'bg-[#5A1717] text-white font-medium'
+                        : 'text-stone-700 hover:text-[#5A1717] hover:bg-[#EDE3D1]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <HelpCircle className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                      <span>{navT.faqs}</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Direct Navigation Links for About and Contact */}
           <div className="rounded-2xl border border-[#B88935]/20 bg-[#F4ECDC]/40 p-2 space-y-0.5">
-            <button
-              onClick={() => handleNavClick('/guruji')}
-              className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                currentRoute === '/guruji'
-                  ? 'bg-[#5A1717] text-white'
-                  : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Users className="w-4 h-4 text-[#C56A18]" />
-                <span>{navT.guruji}</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-            </button>
-            <button
-              onClick={() => handleNavClick('/articles')}
-              className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                currentRoute === '/articles' || currentRoute.startsWith('/articles/')
-                  ? 'bg-[#5A1717] text-white'
-                  : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4 text-[#B88935]" />
-                <span>{navT.articles}</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-            </button>
-            <button
-              onClick={() => handleNavClick('/gallery')}
-              className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                currentRoute === '/gallery'
-                  ? 'bg-[#5A1717] text-white'
-                  : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <ImageIcon className="w-4 h-4 text-[#C56A18]" />
-                <span>{navT.gallery}</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-            </button>
             <button
               onClick={() => handleNavClick('/about')}
               className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
@@ -943,20 +1099,6 @@ export function Header({ onOpenBooking }: HeaderProps) {
               <div className="flex items-center gap-2.5">
                 <Info className="w-4 h-4 text-[#B88935]" />
                 <span>{navT.about}</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-            </button>
-            <button
-              onClick={() => handleNavClick('/faqs')}
-              className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                currentRoute === '/faqs'
-                  ? 'bg-[#5A1717] text-white'
-                  : 'text-[#211D19] hover:bg-[#EDE3D1] hover:text-[#5A1717]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <HelpCircle className="w-4 h-4 text-stone-500" />
-                <span>{navT.faqs}</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
@@ -1048,10 +1190,11 @@ export function Header({ onOpenBooking }: HeaderProps) {
         <div className="p-4 border-t border-[#B88935]/20 bg-[#F4ECDC]/90 backdrop-blur-xs shrink-0 space-y-2">
           <button
             onClick={handleBookClick}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] shadow-md hover:shadow-lg active:scale-98 transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#C56A18] to-[#996B1E] shadow-md hover:shadow-lg active:scale-98 transition-all cursor-pointer whitespace-nowrap shrink-0"
+            style={{ whiteSpace: 'nowrap' }}
           >
             <TrishulIcon className="w-4 h-4 text-amber-200 shrink-0" />
-            <span>{navT.drawerBookCta}</span>
+            <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{navT.drawerBookCta}</span>
           </button>
           <div className="text-center text-[10px] text-stone-500 font-devanagari">
             श्री त्र्यंबकेश्वर मंदिर • अधिकृत तीर्थक्षेत्र सेवा

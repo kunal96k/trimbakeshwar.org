@@ -189,9 +189,10 @@ export function Footer({ currentLang = 'en', onOpenBooking }: FooterProps) {
               <li className="pt-2">
                 <button
                   onClick={handleBook}
-                  className="px-4 py-1.5 rounded-full text-xs font-semibold text-[#211D19] bg-gradient-to-r from-amber-300 to-amber-400 hover:bg-amber-400 transition-all shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 rounded-full text-xs font-semibold text-[#211D19] bg-gradient-to-r from-amber-300 to-amber-400 hover:bg-amber-400 transition-all shadow-xs cursor-pointer whitespace-nowrap shrink-0"
+                  style={{ whiteSpace: 'nowrap' }}
                 >
-                  {ft.bookVidhiNow}
+                  <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{ft.bookVidhiNow}</span>
                 </button>
               </li>
             </ul>
@@ -205,7 +206,15 @@ export function Footer({ currentLang = 'en', onOpenBooking }: FooterProps) {
             <div className="space-y-3 text-xs text-stone-400">
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>{ft.address}</span>
+                <a
+                  href="https://share.google/YsotIiu38IlI8yFEu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-amber-200 transition-colors"
+                  title="Open in Google Maps"
+                >
+                  <span>{ft.address}</span>
+                </a>
               </div>
               <div className="flex items-center gap-2.5">
                 <Clock className="w-4 h-4 text-amber-400 shrink-0" />
@@ -217,7 +226,9 @@ export function Footer({ currentLang = 'en', onOpenBooking }: FooterProps) {
               </div>
               <div className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>seva@trimbakeshwar-jyotirlinga.org</span>
+                <a href="mailto:trimbak.tirthapurohit@gmail.com" className="hover:text-amber-200 transition-colors">
+                  trimbak.tirthapurohit@gmail.com
+                </a>
               </div>
             </div>
 

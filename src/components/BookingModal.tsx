@@ -10,6 +10,7 @@ import {
   Calendar,
   User,
   Phone,
+  Mail,
   MapPin,
   Sparkles,
   ShieldCheck,
@@ -29,6 +30,7 @@ import {
   Info,
 } from 'lucide-react';
 import { TrishulIcon, DivyaSparkleIcon, OmSymbol } from './Motifs';
+import { submitPoojaBooking } from '../services/enquiryService';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -50,8 +52,8 @@ export function BookingModal({
   // 2: Date & Muhurat
   // 3: Guruji
   // 4: Yajman Details
-  // 5: Mobile OTP Verification
-  // 6: Advance Booking Payment (₹500)
+  // 5: Email OTP Verification
+  // 6: Advance Booking Payment (₹1,000)
   // 7: Confirmed Pass
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [selectedVidhi, setSelectedVidhi] = useState<PujaItem | null>(null);
@@ -107,24 +109,34 @@ export function BookingModal({
 
   // Initialize initial vidhi, guruji & default date
   useEffect(() => {
-    if (initialVidhiId) {
-      const vidhi = PUJA_LIST.find((p) => p.id === initialVidhiId || p.slug === initialVidhiId);
-      if (vidhi) setSelectedVidhi(vidhi);
-    } else if (!selectedVidhi && PUJA_LIST.length > 0) {
-      setSelectedVidhi(PUJA_LIST[0]);
-    }
+    if (isOpen) {
+      if (initialVidhiId) {
+        const vidhi = PUJA_LIST.find((p) => p.id === initialVidhiId || p.slug === initialVidhiId);
+        if (vidhi) setSelectedVidhi(vidhi);
+      } else if (!selectedVidhi && PUJA_LIST.length > 0) {
+        setSelectedVidhi(PUJA_LIST[0]);
+      }
 
-    if (initialGurujiId) {
-      const guruji = GURUJI_LIST.find((g) => g.id === initialGurujiId);
-      if (guruji) setSelectedGuruji(guruji);
-    } else if (!selectedGuruji && GURUJI_LIST.length > 0) {
-      setSelectedGuruji(GURUJI_LIST[0]);
-    }
+      if (initialGurujiId) {
+        const guruji = GURUJI_LIST.find((g) => g.id === initialGurujiId);
+        if (guruji) setSelectedGuruji(guruji);
+      } else if (GURUJI_LIST.length > 0) {
+        setSelectedGuruji(GURUJI_LIST[0]);
+      }
 
-    // Default auspicious date (3 days from now)
-    const today = new Date();
-    today.setDate(today.getDate() + 3);
-    setSelectedDate(today.toISOString().split('T')[0]);
+      // Default auspicious date (3 days from now)
+      const today = new Date();
+      today.setDate(today.getDate() + 3);
+      setSelectedDate(today.toISOString().split('T')[0]);
+
+      if (bookingConfirmed) {
+        setBookingConfirmed(false);
+        setCurrentStep(1);
+        setIsOtpVerified(false);
+        setIsProcessingPayment(false);
+        setStepError(null);
+      }
+    }
   }, [initialVidhiId, initialGurujiId, isOpen]);
 
   // OTP Countdown timer
@@ -168,22 +180,7 @@ export function BookingModal({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Quick fill sample Yajman data for easy evaluation
-  const handleDemoFillYajman = () => {
-    setYajmanData({
-      name: 'Rajesh Ramchandra Joshi',
-      phone: '9823012345',
-      email: 'rajesh.joshi@example.com',
-      city: 'Pune, Maharashtra',
-      gotra: 'Kashyap (कश्यप)',
-      familyMembers: '2',
-      language: 'Marathi',
-      specialNotes: 'Seeking ancestral peace and family prosperity blessings at Trimbakeshwar.',
-    });
-    setStepError(null);
-  };
-
-  // Handle Step 4 -> Step 5 (Validation & OTP Trigger)
+  // Handle Step 4 -> Step 5 (Validation & Email OTP Trigger)
   const handleProceedToOtp = () => {
     if (!yajmanData.name.trim() || yajmanData.name.trim().length < 3) {
       setStepError('Please enter Primary Yajman Full Name (at least 3 characters).');
@@ -192,6 +189,11 @@ export function BookingModal({
     const cleanPhone = yajmanData.phone.replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 10) {
       setStepError('Please enter a valid 10-digit WhatsApp / Mobile number.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!yajmanData.email.trim() || !emailRegex.test(yajmanData.email.trim())) {
+      setStepError('Please enter a valid Email Address to receive the OTP verification code.');
       return;
     }
 
@@ -260,7 +262,7 @@ export function BookingModal({
   const handleVerifyOtpAndProceed = () => {
     const entered = otpDigits.join('');
     if (entered.length < 4) {
-      setOtpError('Please enter the complete 4-digit code (Use Demo OTP: 1234).');
+      setOtpError('Please enter the complete 4-digit code (Use Demo Email OTP: 1234).');
       return;
     }
 
@@ -296,30 +298,52 @@ export function BookingModal({
     setCardData({ ...cardData, expiry: val });
   };
 
-  // Payment Execution Simulation
-  const handleExecutePayment = () => {
+  // Payment Execution & Backend Lead Registration
+  const handleExecutePayment = async () => {
     setIsProcessingPayment(true);
-    setPaymentStepText('Connecting to Secure NPCI & Bank Gateway...');
+    setPaymentStepText('Connecting to Secure NPCI Gateway & Guruji Ledger...');
 
-    setTimeout(() => {
-      setPaymentStepText('Authorizing ₹500 Advance Token...');
-    }, 600);
+    const ref = `TRMBK-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const txn = `TXN-${paymentMethod.toUpperCase()}-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    const now = new Date().toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
 
-    setTimeout(() => {
-      const ref = `TRMBK-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-      const txn = `TXN-${paymentMethod.toUpperCase()}-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-      const now = new Date().toLocaleString('en-IN', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+    try {
+      const apiRes = await submitPoojaBooking({
+        devoteeName: yajmanData.name,
+        phone: yajmanData.phone,
+        email: yajmanData.email,
+        gotra: yajmanData.gotra,
+        city: yajmanData.city,
+        poojaType: selectedVidhi?.name || 'Vedic Vidhi Puja',
+        poojaCategory: selectedVidhi?.category,
+        scheduledDate: selectedDate,
+        timeSlot: selectedTimeSlot,
+        familyMembersCount: parseInt(yajmanData.familyMembers) || 2,
+        advanceAmount: 1000,
+        paymentMethod: paymentMethod,
+        utrNumber: txn,
+        notes: yajmanData.specialNotes || `Appointed Guruji: ${selectedGuruji?.name || 'Pt. Pravin Shambhu Deshmukh (Desai)'}`,
+        language: yajmanData.language,
       });
 
+      if (apiRes.leadCode) {
+        setBookingRefId(apiRes.leadCode);
+      } else {
+        setBookingRefId(ref);
+      }
+    } catch (err) {
+      console.warn('Booking API error, using fallback reference:', err);
       setBookingRefId(ref);
-      setTransactionId(txn);
-      setPaymentTime(now);
-      setIsProcessingPayment(false);
-      setBookingConfirmed(true);
-      setCurrentStep(7);
-    }, 1300);
+    }
+
+    setTransactionId(txn);
+    setPaymentTime(now);
+    setIsProcessingPayment(false);
+    setBookingConfirmed(true);
+    setCurrentStep(7);
   };
 
   const handleBack = () => {
@@ -338,14 +362,18 @@ export function BookingModal({
   };
 
   const handleWhatsAppShare = () => {
+    const feeText = `• Vidhi Dakshina: As per mutual discussion with Guruji (₹1,000 Advance Token Paid online to reserve slot)\n`;
+
     const text = encodeURIComponent(
       `🙏 Shri Trimbakeshwar Jyotirlinga Puja Booking Confirmed!\n\n` +
         `• Booking Ref: ${bookingRefId}\n` +
-        `• Transaction ID: ${transactionId} (₹500 Advance Paid)\n` +
+        `• Transaction ID: ${transactionId} (₹1,000 Advance Paid)\n` +
         `• Vidhi: ${selectedVidhi?.name}\n` +
         `• Appointed Guruji: ${selectedGuruji?.name}\n` +
         `• Date: ${selectedDate} (${selectedTimeSlot})\n` +
         `• Yajman: ${yajmanData.name} (Gotra: ${yajmanData.gotra || 'Kashyap'})\n` +
+        `• Devotee Email: ${yajmanData.email}\n` +
+        feeText +
         `• Venue: Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar\n\n` +
         `Har Har Mahadev!`
     );
@@ -358,7 +386,7 @@ export function BookingModal({
     { num: 3, label: 'Guruji' },
     { num: 4, label: 'Yajman' },
     { num: 5, label: 'OTP' },
-    { num: 6, label: 'Pay ₹500' },
+    { num: 6, label: 'Pay ₹1,000' },
   ];
 
   return (
@@ -383,9 +411,9 @@ export function BookingModal({
                 {bookingConfirmed
                   ? 'पूजा संकल्प व टोकन पुष्टी • Booking Confirmed'
                   : currentStep === 5
-                  ? 'मोबाईल ओटीपी पडताळणी • Verify Mobile OTP'
+                  ? 'ईमेल ओटीपी पडताळणी • Verify Email OTP'
                   : currentStep === 6
-                  ? 'ॲडव्हान्स टोकन पेमेंट • Pay ₹500 Advance Token'
+                  ? 'ॲडव्हान्स टोकन पेमेंट • Pay ₹1,000 Advance Token'
                   : 'पूजा नोंदणी • Sacred Vidhi Booking'}
               </h2>
             </div>
@@ -393,7 +421,7 @@ export function BookingModal({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white transition-colors"
+            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white transition-colors cursor-pointer"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -445,8 +473,8 @@ export function BookingModal({
                   {currentStep === 2 && '2/6: Date & Muhurat'}
                   {currentStep === 3 && '3/6: Select Guruji'}
                   {currentStep === 4 && '4/6: Yajman Information'}
-                  {currentStep === 5 && '5/6: Verify Mobile OTP'}
-                  {currentStep === 6 && '6/6: Pay ₹500 Advance Token'}
+                  {currentStep === 5 && '5/6: Verify Email OTP'}
+                  {currentStep === 6 && '6/6: Pay ₹1,000 Advance Token'}
                 </span>
               </span>
               <div className="w-24 bg-stone-200 h-1.5 rounded-full overflow-hidden">
@@ -472,56 +500,92 @@ export function BookingModal({
                   Step 1 of 6
                 </span>
               </div>
-              <p className="text-xs text-stone-600 mb-4">
+              <p className="text-xs text-stone-600 mb-3">
                 Select the sacred ritual you wish to observe under the divine presence of Trimbakeshwar Mahadev.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {PUJA_LIST.map((puja) => (
-                  <div
-                    key={puja.id}
-                    onClick={() => setSelectedVidhi(puja)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden ${
-                      selectedVidhi?.id === puja.id
-                        ? 'bg-[#EDE3D1] border-[#5A1717] ring-2 ring-[#5A1717]/20 shadow-sm'
-                        : 'bg-white border-stone-200 hover:border-[#B88935]/60 hover:bg-amber-50/40'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={puja.image || puja.imageUrl}
-                          alt={puja.name}
-                          className="w-12 h-12 rounded-xl object-cover border border-[#B88935]/30 shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div>
-                          <div className="text-[10px] font-bold text-[#C56A18] uppercase tracking-wider">
-                            {puja.category}
-                          </div>
-                          <div className="text-sm font-bold text-[#211D19] font-heading leading-snug">
-                            {puja.name}
-                          </div>
-                          <div className="text-[11px] font-sanskrit text-stone-600">
-                            {puja.sanskritName}
-                          </div>
-                        </div>
-                      </div>
-                      {selectedVidhi?.id === puja.id && (
-                        <div className="w-5 h-5 rounded-full bg-[#5A1717] text-white flex items-center justify-center text-xs shrink-0 shadow-sm">
-                          ✓
-                        </div>
-                      )}
+              {/* Hereditary Purohit Trust Banner */}
+              <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-[#EDE3D1] via-amber-50 to-[#EDE3D1]/60 border border-[#B88935]/40 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/assets/guruji.png"
+                    alt="Pt. Pravin Shambhu Deshmukh"
+                    className="w-12 h-12 rounded-xl object-cover object-top border-2 border-[#B88935] shrink-0 shadow-xs"
+                  />
+                  <div>
+                    <div className="font-bold text-xs sm:text-sm text-[#5A1717] font-heading leading-tight">
+                      Direct Shastric Vidhi by Pt. Pravin Shambhu Deshmukh (Desai)
                     </div>
-                    <div className="mt-2 text-[11px] text-stone-600 line-clamp-2">
-                      {puja.tagline}
-                    </div>
-                    <div className="mt-2.5 pt-2 border-t border-stone-200/70 flex items-center justify-between text-[10px] text-stone-600 font-medium">
-                      <span>Duration: {puja.duration}</span>
-                      <span className="text-[#5A1717] font-semibold">Samagri Included</span>
+                    <div className="text-[10px] sm:text-[11px] text-stone-600 font-devanagari mt-0.5">
+                      २५ पिढ्यांचे वंशपरंपरागत वतनदार तीर्थ पुरोहित • थेट अधिकृत संकल्प व पूजा
                     </div>
                   </div>
-                ))}
+                </div>
+                <span className="hidden sm:inline-block px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300 shrink-0">
+                  100% Authorized
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {PUJA_LIST.map((puja) => {
+                  return (
+                    <div
+                      key={puja.id}
+                      onClick={() => setSelectedVidhi(puja)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden flex flex-col justify-between ${
+                        selectedVidhi?.id === puja.id
+                          ? 'bg-[#EDE3D1] border-[#5A1717] ring-2 ring-[#5A1717]/20 shadow-sm'
+                          : 'bg-white border-stone-200 hover:border-[#B88935]/60 hover:bg-amber-50/40'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={puja.image || puja.imageUrl}
+                              alt={puja.name}
+                              className="w-12 h-12 rounded-xl object-cover border border-[#B88935]/30 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div>
+                              <div className="text-[10px] font-bold text-[#C56A18] uppercase tracking-wider">
+                                {puja.category}
+                              </div>
+                              <div className="text-sm font-bold text-[#211D19] font-heading leading-snug">
+                                {puja.name}
+                              </div>
+                              <div className="text-[11px] font-sanskrit text-stone-600">
+                                {puja.sanskritName}
+                              </div>
+                            </div>
+                          </div>
+                          {selectedVidhi?.id === puja.id && (
+                            <div className="w-5 h-5 rounded-full bg-[#5A1717] text-white flex items-center justify-center text-xs shrink-0 shadow-sm">
+                              ✓
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2 text-[11px] text-stone-600 line-clamp-2">
+                          {puja.tagline}
+                        </div>
+                      </div>
+
+                      {/* Fee Badge & Duration */}
+                      <div className="mt-3 pt-2 border-t border-stone-200/70 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-stone-500 font-medium">Duration: {puja.duration}</span>
+                          <span className="font-semibold text-stone-700 bg-stone-100 px-2 py-0.5 rounded-md">
+                            Dakshina on discussion
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-stone-500 flex items-center justify-between">
+                          <span className="text-emerald-700 font-medium">₹1,000 Advance Token</span>
+                          <span className="text-stone-400">Samagri Included</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -542,9 +606,12 @@ export function BookingModal({
                   <span className="text-[11px] text-stone-500 uppercase tracking-wider block">Selected Vidhi</span>
                   <span className="font-bold text-sm text-[#5A1717]">{selectedVidhi?.name}</span>
                 </div>
-                <span className="text-xs font-medium text-stone-600 bg-white px-2.5 py-1 rounded-lg border border-stone-200">
-                  {selectedVidhi?.duration}
-                </span>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-[#5A1717] bg-white px-2.5 py-1 rounded-lg border border-stone-200 block">
+                    ₹1,000 Advance Token
+                  </span>
+                  <span className="text-[10px] text-stone-500">{selectedVidhi?.duration}</span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -564,7 +631,7 @@ export function BookingModal({
                     <span>
                       {selectedVidhi?.id === 'narayan-nagbali'
                         ? 'For Narayan Nagbali, a 3-day continuous observance at Trimbakeshwar is traditionally mandated.'
-                        : 'Auspicious muhurats are verified by Guruji in accordance with the Panchang.'}
+                        : 'Auspicious muhurats are verified by Guruji Pt. Pravin Shambhu Deshmukh (Desai) in accordance with the Panchang.'}
                     </span>
                   </div>
                 </div>
@@ -617,67 +684,96 @@ export function BookingModal({
             </div>
           )}
 
-          {/* STEP 3: Choose Guruji */}
+          {/* STEP 3: Choose Guruji (Only 1 Guruji: Pt. Pravin Shambhu Deshmukh (Desai)) */}
           {currentStep === 3 && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-base sm:text-lg font-bold font-heading text-[#5A1717]">
-                  Choose Vedic Guruji
+                  Appointed Vedic Guruji
                 </h3>
                 <span className="text-[11px] text-[#C56A18] font-semibold bg-amber-100/60 px-2 py-0.5 rounded-full border border-amber-300/40">
                   Step 3 of 6
                 </span>
               </div>
               <p className="text-xs text-stone-600 mb-4">
-                Connect with an authorized, certified Purohit from the sacred Kshetra of Trimbakeshwar.
+                Your ritual will be conducted directly by the authorized hereditary representative Vedic Purohit of Trimbakeshwar Kshetra.
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {GURUJI_LIST.map((guruji) => (
                   <div
                     key={guruji.id}
                     onClick={() => setSelectedGuruji(guruji)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
-                      selectedGuruji?.id === guruji.id
-                        ? 'bg-[#EDE3D1] border-[#5A1717] ring-2 ring-[#5A1717]/20 shadow-sm'
-                        : 'bg-white border-stone-200 hover:bg-amber-50/40'
-                    }`}
+                    className="p-4 sm:p-5 rounded-2xl border-2 border-[#5A1717] bg-[#EDE3D1] ring-2 ring-[#5A1717]/20 shadow-md flex flex-col sm:flex-row items-start gap-4 sm:gap-5 cursor-pointer"
                   >
-                    <div className="flex items-center gap-3">
+                    {/* Large Featured Guruji Photo */}
+                    <div className="relative shrink-0 mx-auto sm:mx-0 group">
                       <img
                         src={guruji.avatar}
                         alt={guruji.name}
-                        className="w-13 h-13 rounded-full object-cover border-2 border-[#B88935]/40 shrink-0"
+                        className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover object-top border-2 border-[#B88935] shrink-0 shadow-md group-hover:scale-[1.02] transition-transform"
                         referrerPolicy="no-referrer"
                       />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="text-sm font-bold text-[#211D19]">{guruji.name}</div>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-semibold border border-emerald-300">
-                            Verified
-                          </span>
-                        </div>
-                        <div className="text-xs font-sanskrit text-[#5A1717] font-semibold">
-                          {guruji.titleNative}
-                        </div>
-                        <div className="text-[11px] text-stone-500 mt-0.5">
-                          {guruji.experienceYears}+ Years Exp • Languages: {guruji.languages.slice(0, 3).join(', ')}
-                        </div>
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 border border-amber-400/50 text-[9px] font-bold text-amber-300 font-devanagari">
+                        मुख्य पुरोहित
+                      </div>
+                      <div className="absolute bottom-1.5 inset-x-1.5 text-center py-0.5 rounded bg-black/75 text-[9px] text-amber-200 border border-amber-400/30">
+                        २५ पिढ्यांचे वतनदार
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="text-xs font-bold text-amber-700">★ {guruji.rating}</div>
-                      <div className="text-[10px] text-stone-500">({guruji.reviewCount} Reviews)</div>
-                      {selectedGuruji?.id === guruji.id && (
-                        <div className="mt-1 w-5 h-5 rounded-full bg-[#5A1717] text-white flex items-center justify-center text-xs ml-auto">
-                          ✓
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-base sm:text-lg font-bold text-[#5A1717] font-heading leading-snug">
+                            {guruji.name}
+                          </div>
+                          <div className="text-xs font-devanagari text-stone-800 font-semibold mt-0.5">
+                            {guruji.titleNative}
+                          </div>
                         </div>
-                      )}
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold border border-emerald-300 inline-flex items-center gap-1 shrink-0">
+                          <BadgeCheck className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>100% Authorized Purohit</span>
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-stone-700 font-medium mt-1.5 flex flex-wrap items-center gap-2">
+                        <span className="text-amber-900 font-bold">{guruji.experienceYears}+ Years Vedic Exp</span>
+                        <span>•</span>
+                        <span>{guruji.education}</span>
+                      </div>
+
+                      <p className="text-[11px] text-stone-600 leading-relaxed mt-2 line-clamp-2">
+                        {guruji.bio}
+                      </p>
+
+                      <div className="mt-3 pt-2 border-t border-[#B88935]/25 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="text-[11px] text-[#C56A18] font-medium">
+                          Languages: {guruji.languages.join(' • ')}
+                        </div>
+                        <div className="px-2.5 py-1 rounded-full bg-[#5A1717] text-white text-xs font-semibold flex items-center gap-1">
+                          <Check className="w-3 h-3 text-amber-200" />
+                          <span>Selected Purohit</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Bio & Transparency Box */}
+              {selectedGuruji && (
+                <div className="mt-4 p-3.5 rounded-2xl bg-white border border-[#B88935]/30 text-xs text-stone-700 space-y-2">
+                  <div className="font-semibold text-[#5A1717] flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-[#C56A18]" />
+                    <span>{selectedGuruji.purohitParampara}</span>
+                  </div>
+                  <p className="text-stone-600 leading-relaxed text-[11px]">
+                    {selectedGuruji.bio}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -688,18 +784,28 @@ export function BookingModal({
                 <h3 className="text-base sm:text-lg font-bold font-heading text-[#5A1717]">
                   Yajman & Sankalp Details
                 </h3>
-                <button
-                  type="button"
-                  onClick={handleDemoFillYajman}
-                  className="text-[11px] font-semibold text-[#5A1717] hover:text-[#B88935] bg-amber-100/70 hover:bg-amber-200/80 px-2.5 py-1 rounded-full border border-amber-300/60 transition-colors flex items-center gap-1"
-                >
-                  <Sparkles className="w-3 h-3 text-[#C56A18]" />
-                  <span>Auto-fill Sample Data</span>
-                </button>
               </div>
               <p className="text-xs text-stone-600 mb-3.5">
                 Please enter devotee information for the sacred Sankalp recitation before Lord Trimbakeshwar.
               </p>
+
+              {/* Appointed Guruji Summary Strip */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-[#EDE3D1]/70 border border-[#B88935]/30 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src="/assets/guruji.png"
+                    alt="Pt. Pravin Shambhu Deshmukh (Desai)"
+                    className="w-8 h-8 rounded-full object-cover object-top border border-[#B88935] shrink-0 shadow-xs"
+                  />
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase tracking-wider block">Appointed Vedic Purohit</span>
+                    <span className="font-bold text-[#5A1717]">Pt. Pravin Shambhu Deshmukh (Desai)</span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                  Direct Sankalp
+                </span>
+              </div>
 
               {stepError && (
                 <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
@@ -716,7 +822,7 @@ export function BookingModal({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Rajesh Ramchandra Joshi"
+                    placeholder="Enter your full name"
                     value={yajmanData.name}
                     onChange={(e) => {
                       setYajmanData({ ...yajmanData, name: e.target.value });
@@ -728,14 +834,14 @@ export function BookingModal({
 
                 <div>
                   <label className="block font-bold text-stone-700 uppercase mb-1">
-                    WhatsApp / Mobile Number * (for OTP)
+                    WhatsApp / Mobile Number *
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-stone-500 font-semibold">+91</span>
                     <input
                       type="tel"
                       required
-                      placeholder="98XXXXXXXX"
+                      placeholder="Enter 10-digit mobile number"
                       value={yajmanData.phone}
                       onChange={(e) => {
                         setYajmanData({ ...yajmanData, phone: e.target.value });
@@ -744,6 +850,27 @@ export function BookingModal({
                       className="w-full pl-11 pr-3 p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
                     />
                   </div>
+                  <div className="text-[10px] text-stone-500 mt-0.5">For Guruji direct call & WhatsApp communication</div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase mb-1">
+                    Email Address * (for OTP verification)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      placeholder="Enter your email address"
+                      value={yajmanData.email}
+                      onChange={(e) => {
+                        setYajmanData({ ...yajmanData, email: e.target.value });
+                        if (stepError) setStepError(null);
+                      }}
+                      className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
+                    />
+                  </div>
+                  <div className="text-[10px] text-stone-500 mt-0.5">4-digit verification code will be sent to this email</div>
                 </div>
 
                 <div>
@@ -752,7 +879,7 @@ export function BookingModal({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Pune, Maharashtra"
+                    placeholder="Enter your city / native place"
                     value={yajmanData.city}
                     onChange={(e) => setYajmanData({ ...yajmanData, city: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
@@ -765,7 +892,7 @@ export function BookingModal({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Kashyap / Vashistha / Shiva Gotra"
+                    placeholder="Enter your gotra (if known)"
                     value={yajmanData.gotra}
                     onChange={(e) => setYajmanData({ ...yajmanData, gotra: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
@@ -788,7 +915,7 @@ export function BookingModal({
                   </select>
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block font-bold text-stone-700 uppercase mb-1">
                     Preferred Language for Vidhi
                   </label>
@@ -801,8 +928,7 @@ export function BookingModal({
                     <option value="Hindi">हिंदी (Hindi)</option>
                     <option value="Gujarati">ગુજરાતી (Gujarati)</option>
                     <option value="English">English</option>
-                    <option value="Telugu">తెలుగు (Telugu)</option>
-                    <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+                    <option value="Sanskrit">संस्कृतम् (Sanskrit)</option>
                   </select>
                 </div>
               </div>
@@ -813,7 +939,7 @@ export function BookingModal({
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. Peace of ancestors, health prayers for parents, or specific dates..."
+                  placeholder="Enter any special Sankalp intentions or notes (optional)..."
                   value={yajmanData.specialNotes}
                   onChange={(e) => setYajmanData({ ...yajmanData, specialNotes: e.target.value })}
                   className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#B88935]"
@@ -823,39 +949,39 @@ export function BookingModal({
               <div className="mt-3 p-3 rounded-xl bg-[#EDE3D1]/60 border border-[#B88935]/25 flex items-start gap-2 text-xs text-stone-700">
                 <ShieldCheck className="w-4 h-4 text-[#5A1717] shrink-0 mt-0.5" />
                 <span>
-                  Next step requires <strong>Mobile OTP Verification</strong> to authenticate your phone number,
-                  followed by the official <strong>₹500 Advance Booking Token payment</strong>.
+                  Next step requires <strong>Email OTP Verification</strong> to authenticate your email address,
+                  followed by the official <strong>₹1,000 Advance Booking Token payment</strong>.
                 </span>
               </div>
             </div>
           )}
 
-          {/* STEP 5: Mobile OTP Verification (NEW) */}
+          {/* STEP 5: Email OTP Verification */}
           {currentStep === 5 && (
             <div className="py-2">
               <div className="text-center max-w-md mx-auto">
                 <div className="w-14 h-14 rounded-full bg-amber-100 border-2 border-[#B88935]/40 text-[#5A1717] flex items-center justify-center mx-auto mb-3 shadow-sm">
-                  <Smartphone className="w-7 h-7 text-[#5A1717]" />
+                  <Mail className="w-7 h-7 text-[#5A1717]" />
                 </div>
 
                 <div className="text-[11px] font-bold uppercase tracking-widest text-[#C56A18]">
-                  सुरक्षित मोबाईल पडताळणी
+                  सुरक्षित ईमेल पडताळणी
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold font-sanskrit text-[#5A1717] mt-0.5 mb-1.5">
-                  Verify Mobile Number (OTP)
+                  Verify Email Address (OTP)
                 </h3>
                 <p className="text-xs text-stone-600 mb-4">
-                  We have sent a 4-digit verification code to{' '}
-                  <span className="font-bold text-stone-900">+91 {yajmanData.phone || '98XXXXXXXX'}</span>.
+                  We have sent a 4-digit verification code to your email:{' '}
+                  <span className="font-bold text-[#5A1717] underline">{yajmanData.email || 'devotee@example.com'}</span>.
                 </p>
 
                 {/* Demo Helper Button */}
                 <div className="mb-4 inline-flex items-center gap-2 bg-amber-50 border border-amber-300/80 rounded-full px-3 py-1 text-xs">
-                  <span className="text-amber-800 font-medium">Demo Testing OTP: <strong>1234</strong></span>
+                  <span className="text-amber-800 font-medium">Demo Testing Email OTP: <strong>1234</strong></span>
                   <button
                     type="button"
                     onClick={handleAutoFillDemoOtp}
-                    className="bg-[#5A1717] hover:bg-[#701D1D] text-white text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors"
+                    className="bg-[#5A1717] hover:bg-[#701D1D] text-white text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors cursor-pointer"
                   >
                     Auto-fill 1234
                   </button>
@@ -894,20 +1020,20 @@ export function BookingModal({
                 {isOtpVerified && (
                   <div className="text-xs text-emerald-700 font-bold mb-3 flex items-center justify-center gap-1.5 bg-emerald-50 py-1.5 px-3 rounded-full border border-emerald-200 mx-auto w-fit">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Mobile Number +91 {yajmanData.phone} Verified!</span>
+                    <span>Email {yajmanData.email} Verified!</span>
                   </div>
                 )}
 
-                {/* Resend & Change Number Actions */}
+                {/* Resend & Change Email Actions */}
                 <div className="flex items-center justify-center gap-4 text-xs text-stone-600 mt-2 mb-2">
                   {canResendOtp ? (
                     <button
                       type="button"
                       onClick={handleResendOtp}
-                      className="text-[#5A1717] font-bold hover:underline flex items-center gap-1"
+                      className="text-[#5A1717] font-bold hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Resend OTP via SMS</span>
+                      <span>Resend OTP to Email</span>
                     </button>
                   ) : (
                     <span className="text-stone-500">
@@ -920,23 +1046,23 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setCurrentStep(4)}
-                    className="text-[#C56A18] font-semibold hover:underline"
+                    className="text-[#C56A18] font-semibold hover:underline cursor-pointer"
                   >
-                    Edit Phone Number
+                    Edit Email Address
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 6: Advance Booking Payment Modal (₹500 Fee) (NEW) */}
+          {/* STEP 6: Advance Booking Payment Modal (₹1,000 Fee) */}
           {currentStep === 6 && (
             <div>
               {/* Fee Notice Banner */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-100/90 via-[#EDE3D1] to-amber-100/70 border-2 border-[#B88935]/50 mb-4 shadow-sm">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-100/90 via-[#EDE3D1] to-amber-100/70 border-2 border-[#B88935]/50 mb-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-full bg-[#5A1717] text-amber-300 flex items-center justify-center font-bold text-lg shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-[#5A1717] text-amber-300 flex items-center justify-center font-bold text-xl shrink-0">
                       ₹
                     </div>
                     <div>
@@ -944,24 +1070,29 @@ export function BookingModal({
                         Official Advance Booking Token
                       </span>
                       <div className="text-lg sm:text-xl font-bold text-[#5A1717] font-heading">
-                        Pay ₹500.00 Advance Deposit
+                        Pay ₹1,000.00 Advance Token
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] bg-emerald-700 text-white font-bold px-2.5 py-0.5 rounded-full">
                       100% Deductible
                     </span>
                     <div className="text-[11px] text-stone-600 mt-1">Adjusted in final Dakshina</div>
                   </div>
                 </div>
 
-                <div className="mt-2.5 pt-2 border-t border-[#B88935]/25 text-[11px] text-stone-700 flex items-start gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-[#C56A18] shrink-0 mt-0.5" />
-                  <span>
-                    The ₹500 advance fee registers your Sankalp in the Kshetra Purohit ledger and reserves Guruji’s
-                    calendar for your selected muhurat. Remaining Dakshina is payable directly after the vidhi.
-                  </span>
+                {/* Pricing Note for Pujas */}
+                <div className="mt-3 pt-2.5 border-t border-[#B88935]/25 text-xs text-stone-700">
+                  <div className="p-2.5 rounded-xl bg-white/80 border border-[#B88935]/30 space-y-1">
+                    <div className="font-bold text-[#5A1717] flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-[#C56A18]" />
+                      <span>Dakshina & Samagri as per discussion with Guruji Pt. Pravin Shambhu Deshmukh (Desai)</span>
+                    </div>
+                    <div className="text-[11px] text-stone-600">
+                      The <strong>₹1,000 advance token</strong> confirms your Sankalp in the Purohit ledger and reserves Guruji’s calendar for your chosen date & muhurat. Total Dakshina is settled mutually after the vidhi.
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -971,9 +1102,16 @@ export function BookingModal({
                   <span className="text-stone-500 text-[10px] block uppercase">Vidhi</span>
                   <span className="font-bold text-[#211D19] line-clamp-1">{selectedVidhi?.name}</span>
                 </div>
-                <div>
-                  <span className="text-stone-500 text-[10px] block uppercase">Purohit</span>
-                  <span className="font-bold text-[#5A1717] line-clamp-1">{selectedGuruji?.name}</span>
+                <div className="flex items-center gap-2">
+                  <img
+                    src={selectedGuruji?.avatar || '/assets/guruji.png'}
+                    alt={selectedGuruji?.name || 'Guruji'}
+                    className="w-7 h-7 rounded-full object-cover object-top border border-[#B88935] shrink-0 shadow-xs"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-stone-500 text-[10px] block uppercase">Purohit</span>
+                    <span className="font-bold text-[#5A1717] line-clamp-1 truncate">{selectedGuruji?.name}</span>
+                  </div>
                 </div>
                 <div>
                   <span className="text-stone-500 text-[10px] block uppercase">Date</span>
@@ -981,7 +1119,7 @@ export function BookingModal({
                 </div>
                 <div>
                   <span className="text-stone-500 text-[10px] block uppercase">Advance Token</span>
-                  <span className="font-bold text-emerald-700">₹500.00 (Due Now)</span>
+                  <span className="font-bold text-emerald-700">₹1,000.00 (Due Now)</span>
                 </div>
               </div>
 
@@ -994,7 +1132,7 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('qr')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                       paymentMethod === 'qr'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
                         : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
@@ -1007,7 +1145,7 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('upi')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                       paymentMethod === 'upi'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
                         : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
@@ -1020,7 +1158,7 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('card')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                       paymentMethod === 'card'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
                         : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
@@ -1033,7 +1171,7 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('netbanking')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                       paymentMethod === 'netbanking'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
                         : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
@@ -1134,7 +1272,7 @@ export function BookingModal({
                     </div>
 
                     <div className="mt-3">
-                      <div className="text-sm font-bold text-[#5A1717]">₹500.00 Advance Booking Fee</div>
+                      <div className="text-sm font-bold text-[#5A1717]">₹1,000.00 Advance Booking Token</div>
                       <div className="text-[11px] text-stone-500 font-mono mt-0.5">
                         UPI ID: trimbak.purohitseva@sbi
                       </div>
@@ -1163,7 +1301,7 @@ export function BookingModal({
                             key={app}
                             type="button"
                             onClick={() => setUpiIdInput(`${yajmanData.phone || 'devotee'}@${app.toLowerCase().slice(0, 4)}`)}
-                            className="p-2 rounded-xl border border-stone-200 hover:border-[#B88935] hover:bg-amber-50/50 text-xs font-medium text-stone-800 flex items-center justify-center gap-1.5"
+                            className="p-2 rounded-xl border border-stone-200 hover:border-[#B88935] hover:bg-amber-50/50 text-xs font-medium text-stone-800 flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <span>{app}</span>
                           </button>
@@ -1178,7 +1316,7 @@ export function BookingModal({
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          placeholder="e.g. mobileNumber@oksbi / username@upi"
+                          placeholder="Enter your UPI ID (e.g. username@upi)"
                           value={upiIdInput}
                           onChange={(e) => setUpiIdInput(e.target.value)}
                           className="flex-1 p-2.5 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#B88935]"
@@ -1193,7 +1331,7 @@ export function BookingModal({
                               const base = upiIdInput.split('@')[0] || (yajmanData.phone || 'user');
                               setUpiIdInput(`${base}${sfx}`);
                             }}
-                            className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md font-mono"
+                            className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md font-mono cursor-pointer"
                           >
                             {sfx}
                           </button>
@@ -1342,7 +1480,8 @@ export function BookingModal({
                 पूजा संकल्प व टोकन पुष्टी यशस्वी!
               </h3>
               <p className="text-xs text-stone-600 max-w-md mx-auto mb-4">
-                Your Puja booking and ₹500 advance deposit have been confirmed. An official Sankalp pass has been generated.
+                Your Puja booking and ₹1,000 advance deposit have been confirmed. An official Sankalp pass has been generated and emailed to{' '}
+                <strong>{yajmanData.email}</strong>.
               </p>
 
               {/* Printable / Savable Pass Card */}
@@ -1361,7 +1500,7 @@ export function BookingModal({
                       <button
                         type="button"
                         onClick={handleCopyReference}
-                        className="p-1 text-stone-500 hover:text-stone-800"
+                        className="p-1 text-stone-500 hover:text-stone-800 cursor-pointer"
                         title="Copy Reference"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -1371,9 +1510,9 @@ export function BookingModal({
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-stone-500 block">Token Status</span>
-                    <div className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                    <div className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
                       <BadgeCheck className="w-3.5 h-3.5" />
-                      <span>₹500 PAID</span>
+                      <span>₹1,000 PAID</span>
                     </div>
                   </div>
                 </div>
@@ -1385,11 +1524,26 @@ export function BookingModal({
                     <span className="font-bold text-[#211D19]">{selectedVidhi?.name}</span>
                   </div>
 
+                  {/* Pricing Breakdown on Pass */}
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
+                    <span className="text-stone-600">Vidhi Dakshina:</span>
+                    <span className="font-medium text-stone-800">
+                      As per discussion with Guruji (₹1,000 Paid)
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-1 border-b border-stone-200/50">
                     <span className="text-stone-600">Appointed Purohit:</span>
-                    <div className="text-right">
-                      <span className="font-bold text-[#5A1717]">{selectedGuruji?.name}</span>
-                      <div className="text-[10px] text-stone-500">{selectedGuruji?.titleNative}</div>
+                    <div className="flex items-center gap-2 text-right">
+                      <img
+                        src={selectedGuruji?.avatar || '/assets/guruji.png'}
+                        alt={selectedGuruji?.name || 'Guruji'}
+                        className="w-8 h-8 rounded-full object-cover object-top border border-[#B88935] shadow-xs shrink-0"
+                      />
+                      <div>
+                        <span className="font-bold text-[#5A1717] block">{selectedGuruji?.name}</span>
+                        <div className="text-[10px] text-stone-500">{selectedGuruji?.titleNative}</div>
+                      </div>
                     </div>
                   </div>
 
@@ -1411,6 +1565,11 @@ export function BookingModal({
                   </div>
 
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
+                    <span className="text-stone-600">Devotee Email:</span>
+                    <span className="font-semibold text-[#5A1717]">{yajmanData.email}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
                     <span className="text-stone-600">Transaction ID:</span>
                     <span className="font-mono text-[11px] text-stone-700">{transactionId}</span>
                   </div>
@@ -1428,7 +1587,7 @@ export function BookingModal({
                     <span>Traditional Dress Code: Dhoti / Kurta for Men, Saree for Women.</span>
                   </div>
                   <div className="text-[10px] text-stone-500">
-                    Guruji will contact you on WhatsApp <strong>+91 {yajmanData.phone}</strong> 24 hours prior with fasting rules.
+                    Guruji Pt. Pravin Shambhu Deshmukh (Desai) will contact you on WhatsApp <strong>+91 {yajmanData.phone}</strong> 24 hours prior with fasting & ritual preparations.
                   </div>
                 </div>
               </div>
@@ -1438,7 +1597,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print Pass</span>
@@ -1447,7 +1606,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={handleWhatsAppShare}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   <span>Share on WhatsApp</span>
@@ -1465,7 +1624,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5"
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
@@ -1478,7 +1637,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-2 text-xs font-semibold text-stone-500 hover:text-stone-700"
+                  className="px-3 py-2 text-xs font-semibold text-stone-500 hover:text-stone-700 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1488,7 +1647,7 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setCurrentStep((prev) => prev + 1)}
-                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all"
+                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <span>Continue</span>
                     <ArrowRight className="w-4 h-4" />
@@ -1499,9 +1658,9 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={handleProceedToOtp}
-                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all"
+                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <span>Verify Mobile (OTP)</span>
+                    <span>Verify Email (OTP)</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
@@ -1510,10 +1669,10 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={handleVerifyOtpAndProceed}
-                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-800 hover:to-emerald-700 shadow-md flex items-center gap-1.5 transition-all"
+                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-800 hover:to-emerald-700 shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Verify & Pay ₹500</span>
+                    <span>Verify & Pay ₹1,000</span>
                   </button>
                 )}
 
@@ -1522,7 +1681,7 @@ export function BookingModal({
                     type="button"
                     onClick={handleExecutePayment}
                     disabled={isProcessingPayment}
-                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#7B1F1F] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-2 transition-all disabled:opacity-75"
+                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] via-[#7B1F1F] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-2 transition-all disabled:opacity-75 cursor-pointer"
                   >
                     {isProcessingPayment ? (
                       <>
@@ -1532,7 +1691,7 @@ export function BookingModal({
                     ) : (
                       <>
                         <Lock className="w-3.5 h-3.5" />
-                        <span>Pay ₹500 & Confirm Booking</span>
+                        <span>Pay ₹1,000 & Confirm Booking</span>
                       </>
                     )}
                   </button>
@@ -1545,7 +1704,7 @@ export function BookingModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-[#5A1717] hover:bg-[#6D1B1B] shadow-md transition-colors"
+                className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-[#5A1717] hover:bg-[#6D1B1B] shadow-md transition-colors cursor-pointer"
               >
                 Close & Return
               </button>

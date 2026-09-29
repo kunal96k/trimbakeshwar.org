@@ -31,9 +31,13 @@ export interface PujaItem {
   samagriProvided: boolean;
   image: string;
   imageUrl?: string;
-  category: 'Pitru Vidhi' | 'Shanti Vidhi' | 'Abhishek' | 'Anushthan' | 'Vivah';
+  category: 'Pitru Vidhi' | 'Shanti Vidhi' | 'Abhishek' | 'Anushthan' | 'Vivah' | 'Yaag & Homa' | 'Vastu & Shanti';
   suggestedPurohitCount: number;
   traditionalObservance: string;
+  fixedFee?: number | null;
+  advanceToken?: number;
+  feeNote?: string;
+  feeNoteMarathi?: string;
 }
 
 export interface GurujiItem {

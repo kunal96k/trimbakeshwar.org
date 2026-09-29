@@ -173,9 +173,10 @@ export function PujaDetailPageTemplate(props: PujaDetailPageProps) {
             <div className="pt-2">
               <button
                 onClick={() => openBooking(props.slug)}
-                className="w-full py-3 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md transition-all cursor-pointer text-center"
+                className="w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md transition-all cursor-pointer text-center whitespace-nowrap shrink-0"
+                style={{ whiteSpace: 'nowrap' }}
               >
-                Proceed to Book Puja
+                <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>Proceed to Book Puja</span>
               </button>
               <div className="text-[10px] text-center text-stone-500 mt-2">
                 Price confirmed with Guruji during booking
@@ -350,7 +351,7 @@ export function PujaDetailPageTemplate(props: PujaDetailPageProps) {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className={`grid grid-cols-1 ${displayGurujis.length === 1 ? 'max-w-xl mx-auto' : 'md:grid-cols-3'} gap-5`}>
             {displayGurujis.map((guruji) => (
               <div
                 key={guruji.id}
@@ -361,7 +362,7 @@ export function PujaDetailPageTemplate(props: PujaDetailPageProps) {
                     <img
                       src={guruji.avatar}
                       alt={guruji.name}
-                      className="w-12 h-12 rounded-full object-cover border border-[#B88935]/40 shrink-0"
+                      className="w-12 h-12 rounded-full object-cover object-top border border-[#B88935]/40 shrink-0"
                     />
                     <div>
                       <div className="text-xs font-bold text-[#5A1717]">{guruji.name}</div>

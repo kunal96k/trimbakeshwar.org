@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../context/NavigationContext';
 import { GURUJI_LIST, PUJA_LIST } from '../data/siteData';
 import {
@@ -6,7 +6,6 @@ import {
   ABOUT_VALUES,
   VERIFICATION_LEVELS,
   PLATFORM_PILLARS,
-  DIGITAL_BRIDGE_STEPS,
   ABOUT_FAQS,
 } from '../data/aboutData';
 import { AppRoute, SupportedLanguage } from '../types';
@@ -33,6 +32,9 @@ import {
   Eye,
   Check,
   Building,
+  Scroll,
+  Maximize2,
+  X,
 } from 'lucide-react';
 import { SacredMandala, TrishulIcon, TempleIcon, PranamHandsIcon, VedicScrollIcon, LotusIcon, PanchangIcon, OmSymbol } from '../components/Motifs';
 
@@ -75,6 +77,32 @@ export function AboutPage() {
 
   // FAQ accordion state
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  // Lightbox / Image Preview Modal State
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<{
+    src: string;
+    alt: string;
+    title: string;
+    badge: string;
+    description: string;
+  } | null>(null);
+
+  // Close image modal on Escape key and lock body scroll
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedPreviewImage(null);
+    };
+    if (selectedPreviewImage) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedPreviewImage]);
 
   // Toggle FAQ item
   const toggleFaq = (index: number) => {
@@ -198,8 +226,11 @@ export function AboutPage() {
         {/* =========================================================================
             SECTION 1: WELCOME (Editorial Split Layout)
             ========================================================================= */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
-          <div className="lg:col-span-7 space-y-4">
+        {/* =========================================================================
+            SECTION 1: WELCOME (Editorial Full Width Layout)
+            ========================================================================= */}
+        <section className="bg-white border border-[#B88935]/30 rounded-3xl p-6 sm:p-10 shadow-xs space-y-4">
+          <div className="space-y-4 max-w-4xl">
             <div className="inline-block px-3 py-1 rounded-full bg-[#EDE3D1] text-[#5A1717] font-bold text-[10px] uppercase tracking-wider">
               श्री त्र्यंबकेश्वरमध्ये आपले स्वागत आहे
             </div>
@@ -214,130 +245,189 @@ export function AboutPage() {
                 Trimbakeshwar Mahadev Temple is traditionally revered as one of the twelve sacred Jyotirlinga Kshetras of Bhagwan Shiva, nestled at the foothills of the holy Brahmagiri Mountain where the sacred River Gautami Godavari originates in Nashik, Maharashtra.
               </p>
               <p className="p-3.5 bg-[#EDE3D1]/60 rounded-xl border-l-4 border-[#B88935] font-devanagari text-xs text-[#5A1717] italic">
-                त्र्यंबकेश्वर हे भगवान शिवाच्या द्वादश ज्योतिर्लिंगांपैकी एक पवित्र तीर्थक्षेत्र म्हणून श्रद्धेने मानले जाते. या डिजिटल माध्यमातून त्र्यंबकेश्वरचा आध्यात्मिक वारसा, पूजा-अनुष्ठान, पुरोहित परंपरा आणि भक्तांसाठी उपयुक्त माहिती सुलभपणे उपलब्ध करून देण्याचा प्रयत्न केला जातो.
+                त्र्यंबकेश्वर हे भगवान शिवाच्या द्वादश ज्योतिर्लिंगांपैकी एक पवित्र तीर्थक्षेत्र म्हणून श्रद्धेने मानले जाते. या माध्यमातून त्र्यंबकेश्वरचा आध्यात्मिक वारसा, पूजा-अनुष्ठान, पुरोहित परंपरा आणि भक्तांसाठी उपयुक्त माहिती सुलभपणे उपलब्ध करून देण्याचा प्रयत्न केला जातो.
               </p>
             </div>
           </div>
+        </section>
 
-          <div className="lg:col-span-5">
-            <div className="relative rounded-3xl overflow-hidden border-2 border-[#B88935]/40 shadow-xl bg-stone-900 group">
-              <img
-                src="/assets/trimbak/kushavarta-tirtha.webp"
-                alt="Kushavarta Kund and Trimbakeshwar Landscape"
-                className="w-full h-80 sm:h-96 object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4 text-white">
-                <span className="text-[10px] uppercase tracking-widest text-amber-300 font-bold block">
-                  Kushavarta Tirtha Ghat
-                </span>
-                <p className="text-xs text-stone-200 mt-0.5">
-                  The holy pond where Gautami Godavari emerges, encircled by 18th-century black basalt steps.
+        {/* =========================================================================
+            HEREDITARY ROYAL VATANDAR & TAMRAPATRA HERITAGE SECTION
+            ========================================================================= */}
+        <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#3B0E0E] via-[#501515] to-[#240808] text-white border-2 border-[#D4AF37]/50 shadow-2xl p-6 sm:p-10 lg:p-12 space-y-8">
+          {/* Ambient Rotating Sacred Chakra Watermark */}
+          <div className="absolute -top-12 -right-12 w-64 h-64 opacity-15 pointer-events-none">
+            <SacredMandala className="w-full h-full animate-[spin_120s_linear_infinite]" />
+          </div>
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-radial from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+
+          {/* Section Heading */}
+          <div className="relative z-10 max-w-3xl space-y-2">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B88935]/30 border border-[#D4AF37]/60 text-amber-200 text-[11px] font-bold uppercase tracking-wider shadow-xs">
+              <Scroll className="w-3.5 h-3.5 text-amber-300" />
+              <span>ताम्रपत्र अधिकार • २५ पिढ्यांचे वंशपरंपरागत वतनदार</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-white tracking-tight leading-tight">
+              Hereditary Tirth Purohits of Shri Kshetra Trimbakeshwar
+            </h2>
+            <p className="text-xs sm:text-sm font-devanagari text-amber-200/90 font-medium">
+              छत्रपती शिवाजी महाराजांच्या काळापासून संपूर्ण त्र्यंबकेश्वर गावाचे ऐतिहासिक वतन व २५ पिढ्यांचा अखंड सेवा वारसा
+            </p>
+          </div>
+
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left: Dual Cards Stacked One Above Other in Each Row (Guruji Photo First on Top + Historic Tamrapatra Charter Below) */}
+            <div className="lg:col-span-5 flex flex-col gap-6">
+              {/* Top: Guruji Photo Card (Click opens view modal) */}
+              <div
+                onClick={() =>
+                  setSelectedPreviewImage({
+                    src: '/assets/guruji.png',
+                    alt: 'Pt. Pravin Shambhu Deshmukh (Desai) Guruji at Shri Trimbakeshwar Jyotirlinga',
+                    title: 'वेदमूर्ती पं. प्रवीण शंभू देशमुख (देसाई)',
+                    badge: 'मुख्य पुरोहित • २५ पिढ्यांचे वंशपरंपरागत वतनदार',
+                    description:
+                      'श्री क्षेत्र त्र्यंबकेश्वर ज्योतिर्लिंग गर्भगृहात प्रत्यक्ष पूजेचा पावन क्षण. छत्रपती शिवाजी महाराजांच्या काळापासून संपूर्ण त्र्यंबकेश्वर गावाचे ऐतिहासिक वतनदार तीर्थ पुरोहित.',
+                  })
+                }
+                className="relative rounded-2xl overflow-hidden border-2 border-[#D4AF37]/60 shadow-2xl bg-black/60 group p-2.5 flex flex-col justify-between cursor-pointer hover:border-amber-300 transition-all hover:scale-[1.01]"
+              >
+                <div className="relative overflow-hidden rounded-xl bg-stone-950/80">
+                  <img
+                    src="/assets/guruji.png"
+                    alt="Pt. Pravin Shambhu Deshmukh (Desai) Guruji"
+                    className="w-full h-72 sm:h-80 object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/80 border border-amber-400/50 text-[10px] font-bold text-amber-300 font-devanagari shadow-sm">
+                    मुख्य पुरोहित
+                  </div>
+                  <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-black/75 border border-amber-400/40 text-[11px] font-medium text-amber-200 flex items-center gap-1.5 shadow-md backdrop-blur-xs group-hover:bg-amber-400/20 group-hover:border-amber-300 transition-all">
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>मोठे पहा • View Full</span>
+                  </div>
+                </div>
+                <div className="p-3 text-center bg-black/70 rounded-xl border border-amber-400/20 mt-2">
+                  <span className="text-sm font-bold text-amber-200 font-devanagari block leading-tight">
+                    वेदमूर्ती पं. प्रवीण शंभू देशमुख (देसाई)
+                  </span>
+                  <span className="text-[11px] text-stone-300 block mt-1">
+                    २५ पिढ्यांचे वंशपरंपरागत वतनदार तीर्थ पुरोहित
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom: Tamrapatra Copper Charter Card (Click opens view modal) */}
+              <div
+                onClick={() =>
+                  setSelectedPreviewImage({
+                    src: '/assets/tamprpatra.png',
+                    alt: 'Historic Tamrapatra Copper Plate Charter of Trimbakeshwar Guruji',
+                    title: 'ऐतिहासिक ताम्रपत्र व सनद पुरावा',
+                    badge: 'ऐतिहासिक सनद • छत्रपती शिवाजी महाराज कालीन',
+                    description:
+                      'छत्रपती शिवाजी महाराजांच्या सुवर्णकाळापासून संपूर्ण त्र्यंबकेश्वर गावाचे अधिकृत वंशपरंपरागत वतन व पुरोहित हक्क प्रमाणित करणारे अस्सल ऐतिहासिक ताम्रपत्र व सनद पुरावा.',
+                  })
+                }
+                className="relative rounded-2xl overflow-hidden border-2 border-[#D4AF37]/60 shadow-2xl bg-black/60 group p-2.5 flex flex-col justify-between cursor-pointer hover:border-amber-300 transition-all hover:scale-[1.01]"
+              >
+                <div className="relative overflow-hidden rounded-xl bg-stone-950/80 flex items-center justify-center p-2.5">
+                  <img
+                    src="/assets/tamprpatra.png"
+                    alt="Historic Tamrapatra Copper Plate Charter of Trimbakeshwar Guruji"
+                    className="w-full h-72 sm:h-80 object-contain transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/80 border border-amber-400/50 text-[10px] font-bold text-amber-300 font-devanagari shadow-sm">
+                    ऐतिहासिक सनद
+                  </div>
+                  <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-black/75 border border-amber-400/40 text-[11px] font-medium text-amber-200 flex items-center gap-1.5 shadow-md backdrop-blur-xs group-hover:bg-amber-400/20 group-hover:border-amber-300 transition-all">
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>मोठे पहा • View Full</span>
+                  </div>
+                </div>
+                <div className="p-3 text-center bg-black/70 rounded-xl border border-amber-400/20 mt-2">
+                  <span className="text-sm font-bold text-amber-300 font-devanagari block leading-tight">
+                    ऐतिहासिक ताम्रपत्र व सनद पुरावा
+                  </span>
+                  <span className="text-[11px] text-stone-300 block mt-1">
+                    छत्रपती शिवाजी महाराज कालीन संपूर्ण गावाचे वतन
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: User's Official Content & Rituals List */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="bg-black/45 backdrop-blur-xs border border-amber-300/30 rounded-2xl p-5 sm:p-6 shadow-inner space-y-4">
+                <p className="text-xs sm:text-sm md:text-[15px] text-stone-100 font-sans leading-relaxed">
+                  We are hereditary Tirth Purohits of Shri Kshetra Trimbakeshwar. Since the golden era of Chhatrapati Shivaji Maharaj, our family was bestowed with the historic royal Vatan (hereditary custodianship) of the entire Trimbakeshwar village. Since then, all religious ceremonies, sacred Havans, and Shastric rituals of this holy kshetra are performed directly by our authentic Purohit hands. Serving pilgrims for over 25 unbroken generations, we conduct all traditional Vedic rituals including Narayan Nagbali, Kaal Sarp Yog Shanti, Tripindi Shraddha, Maha Mrityunjaya Japa & Havan, Rudrabhishek, Mahabhishek, Laghurudra, Maharudra, Graha Nakshatra Shanti, Vastu Shanti, Navachandi Yaag, Ganesh Yaag, and Udak Shanti with authentic Shastric devotion.
                 </p>
               </div>
-            </div>
-          </div>
-        </section>
 
-        {/* =========================================================================
-            SECTION 2: OUR PURPOSE (Statement + 6 Visual Cards)
-            ========================================================================= */}
-        <section className="space-y-6">
-          <div className="text-center space-y-3 max-w-3xl mx-auto">
-            <div className="text-[11px] font-bold text-[#C56A18] uppercase tracking-wider font-heading">
-              आमचा उद्देश • OUR PURPOSE
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-heading font-bold text-[#5A1717]">
-              &ldquo;श्रद्धा आणि माहिती यांच्यामधील एक विश्वासार्ह डिजिटल दुवा.&rdquo;
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-sans">
-              Creating a trusted digital bridge between devotees from across Bharat and the spiritual heritage of Trimbakeshwar.
-            </p>
-          </div>
-
-          {/* 6 Visual Purpose Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
-            {[
-              { title: 'Learn', native: 'जाणून घ्या', desc: 'Understand temple history, Brahmagiri legends, and ritual significance.', icon: <VedicScrollIcon className="w-5 h-5 text-[#5A1717]" /> },
-              { title: 'Explore', native: 'शोध घ्या', desc: 'Browse traditional Pujas (Narayan Nagbali, Kaal Sarp Yog, Tripindi).', icon: <LotusIcon className="w-5 h-5 text-[#5A1717]" /> },
-              { title: 'Connect', native: 'संवाद साधा', desc: 'View verified Guruji profiles and communicate directly without middlemen.', icon: <PranamHandsIcon className="w-5 h-5 text-[#5A1717]" /> },
-              { title: 'Plan', native: 'नियोजन करा', desc: 'Prepare Gotra details, Muhurta dates, clothing rules, and stay options.', icon: <PanchangIcon className="w-5 h-5 text-[#5A1717]" /> },
-              { title: 'Book', native: 'नोंदणी करा', desc: 'Submit personalized Puja requests with direct purohit confirmation.', icon: <TempleIcon className="w-5 h-5 text-[#5A1717]" /> },
-              { title: 'Experience', native: 'अनुभूती घ्या', desc: 'Attain peaceful ancestral and spiritual fulfillment in the holy Kshetra.', icon: <TrishulIcon className="w-5 h-5 text-[#5A1717]" /> },
-            ].map((card, i) => (
-              <div
-                key={i}
-                className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:border-[#B88935]/60 hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-[#EDE3D1] text-[#5A1717] flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
-                  {card.icon}
+              {/* 3 Heritage Stat Badges */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-white/5 border border-amber-400/20 text-center">
+                  <span className="text-amber-300 font-bold text-base block font-heading">25+ Generations</span>
+                  <span className="text-[10px] text-stone-300 block font-devanagari">अखंड वंशपरंपरा</span>
                 </div>
-                <div>
-                  <div className="text-[11px] font-devanagari text-[#C56A18] font-bold">
-                    {card.native}
-                  </div>
-                  <h3 className="text-sm sm:text-base font-heading font-bold text-[#5A1717]">
-                    {card.title}
-                  </h3>
-                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    {card.desc}
-                  </p>
+                <div className="p-3 rounded-xl bg-white/5 border border-amber-400/20 text-center">
+                  <span className="text-amber-300 font-bold text-base block font-heading">Royal Vatan</span>
+                  <span className="text-[10px] text-stone-300 block font-devanagari">छत्रपती शिवाजी महाराज कालीन</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/5 border border-amber-400/20 text-center">
+                  <span className="text-amber-300 font-bold text-base block font-heading">Direct Purohit</span>
+                  <span className="text-[10px] text-stone-300 block font-devanagari">थेट अधिकृत संकल्प</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* =========================================================================
-            SECTION 3: THE DIGITAL BRIDGE FLOW
-            ========================================================================= */}
-        <section className="bg-white border border-[#B88935]/30 rounded-3xl p-6 sm:p-10 shadow-xs space-y-6">
-          <div className="text-center space-y-2 max-w-2xl mx-auto">
-            <span className="text-[11px] font-bold text-[#C56A18] uppercase tracking-wider block">
-              एक डिजिटल दुवा • THE DIGITAL BRIDGE
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-heading font-bold text-[#5A1717]">
-              Connecting Devotees Directly With Hereditary Gurujis
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              In this modern age, technology makes authentic traditional knowledge accessible. Our platform facilitates direct communication between pilgrims and verified local Purohits.
-            </p>
-          </div>
-
-          {/* Interactive Flow Visual */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-4">
-            {DIGITAL_BRIDGE_STEPS.map((step, idx) => (
-              <div
-                key={step.id}
-                className="relative bg-[#FBF6EA] border border-[#B88935]/30 rounded-2xl p-4 flex flex-col justify-between space-y-2 text-center group hover:border-[#5A1717] transition-all"
-              >
-                <div className="w-6 h-6 rounded-full bg-[#5A1717] text-amber-200 text-xs font-bold mx-auto flex items-center justify-center">
-                  {idx + 1}
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#C56A18] tracking-wider block">
-                    {step.actor}
-                  </span>
-                  <span className="text-xs font-devanagari text-stone-600 block">
-                    {step.actorNative}
-                  </span>
-                  <h4 className="text-xs sm:text-sm font-heading font-bold text-[#5A1717] mt-1">
-                    {step.action}
-                  </h4>
-                  <p className="text-[11px] text-stone-600 mt-1 leading-relaxed">
-                    {step.description}
-                  </p>
+              {/* Sacred Rituals Tag Cloud */}
+              <div className="space-y-2 pt-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 block">
+                  Sacred Rituals Performed With Authentic Shastric Devotion:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Narayan Nagbali',
+                    'Kaal Sarp Yog Shanti',
+                    'Tripindi Shraddha',
+                    'Maha Mrityunjaya Japa & Havan',
+                    'Rudrabhishek',
+                    'Mahabhishek',
+                    'Laghurudra',
+                    'Maharudra',
+                    'Graha Nakshatra Shanti',
+                    'Vastu Shanti',
+                    'Navachandi Yaag',
+                    'Ganesh Yaag',
+                    'Udak Shanti',
+                  ].map((ritual) => (
+                    <span
+                      key={ritual}
+                      className="px-2.5 py-1 rounded-lg bg-amber-400/10 border border-amber-300/30 text-amber-200 text-xs font-medium"
+                    >
+                      {ritual}
+                    </span>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
 
-          {/* Crucial Platform Transparency Disclaimer */}
-          <div className="bg-[#EDE3D1]/50 border border-[#B88935]/40 rounded-xl p-3.5 text-xs text-stone-700 flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 text-[#C56A18] shrink-0 mt-0.5" />
-            <p className="leading-relaxed">
-              <strong>Platform Notice:</strong> This digital service acts solely as an educational directory and communication facilitator. The platform itself does not conduct religious rituals; all Pujas are performed independently by authorized hereditary Purohits according to Shastra traditions.
-            </p>
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => openBooking()}
+                  className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-[#211D19] bg-gradient-to-r from-amber-300 via-[#D4AF37] to-[#B88935] hover:brightness-105 shadow-md active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <TempleIcon className="w-4 h-4" />
+                  <span>Book Sacred Vidhi With Guruji</span>
+                </button>
+                <button
+                  onClick={() => navigate('/guruji')}
+                  className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-amber-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer inline-flex items-center gap-2"
+                >
+                  <PranamHandsIcon className="w-4 h-4" />
+                  <span>Meet Pt. Pravin Shambhu Deshmukh</span>
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -432,47 +522,6 @@ export function AboutPage() {
           </div>
         </section>
 
-        {/* =========================================================================
-            SECTION 6: THE PUROHIT TRADITION & TIMELINE
-            ========================================================================= */}
-        <section className="space-y-6">
-          <div className="text-center space-y-2 max-w-2xl mx-auto">
-            <span className="text-[11px] font-bold text-[#C56A18] uppercase tracking-wider block">
-              परंपरेचे जतन • A LIVING TRADITION
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-heading font-bold text-[#5A1717]">
-              Preserving Vedic Sanatana Knowledge Across Generations
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              The hereditary Purohits of Trimbak undergo years of rigorous training in Vedic phonetics (Shiksha), rituals (Kalpa), and Grihya Sutras.
-            </p>
-          </div>
-
-          {/* Visual Generation Timeline */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
-            {[
-              { step: '01', title: 'GENERATION', native: 'पिढी', desc: 'Vedic family lineage rooted in Trimbak Kshetra.' },
-              { step: '02', title: 'KNOWLEDGE', native: 'ज्ञान', desc: 'Shukla Yajurveda Samhita and Shastric learning.' },
-              { step: '03', title: 'TRADITION', native: 'परंपरा', desc: 'Customary ritual practices and Puranic mandates.' },
-              { step: '04', title: 'SEVA', native: 'सेवा', desc: 'Devotional guidance of visiting Yajmans.' },
-              { step: '05', title: 'NEXT GEN', native: 'पुढील पिढी', desc: 'Teaching the younger generation in Ved Pathshalas.' },
-            ].map((node, i) => (
-              <div
-                key={i}
-                className="bg-white border border-[#B88935]/30 rounded-2xl p-4 flex flex-col justify-between space-y-2 shadow-xs"
-              >
-                <div className="text-xs font-bold font-heading text-[#C56A18]">
-                  STEP {node.step}
-                </div>
-                <div>
-                  <div className="text-xs sm:text-sm font-bold text-[#5A1717]">{node.title}</div>
-                  <div className="text-[11px] font-devanagari text-stone-500">{node.native}</div>
-                  <p className="text-[10px] text-stone-600 mt-1 leading-tight">{node.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* =========================================================================
             SECTION 7 & 8: TAMRAPATRA & VERIFICATION FRAMEWORK
@@ -486,6 +535,20 @@ export function AboutPage() {
             <h3 className="text-xl sm:text-2xl font-heading font-bold text-white">
               Understanding the Tamrapatra Tradition
             </h3>
+            {/* Tamrapatra Image Preview */}
+            <div className="rounded-2xl overflow-hidden border border-amber-300/30 bg-black/50 p-3 flex items-center gap-4">
+              <img
+                src="/assets/tamprpatra.png"
+                alt="Historic Tamrapatra Copper Charter"
+                className="w-24 h-20 object-contain rounded-lg border border-amber-400/20 bg-stone-950/70 p-1 shrink-0"
+              />
+              <div className="text-xs text-amber-200/90 leading-relaxed font-sans">
+                <span className="font-bold text-amber-100 block text-xs sm:text-sm font-devanagari">
+                  छत्रपती शिवाजी महाराज कालीन ताम्रपत्र
+                </span>
+                Historic royal copper inscription and hereditary Vatan charter preserved across 25 generations.
+              </div>
+            </div>
             <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-sans">
               Tamrapatra refers to ancient engraved copper-plate inscriptions referenced in the Trimbakeshwar Purohit tradition. Historically, royal rulers and Maratha Peshwas granted copper inscriptions to recognize traditional community service.
             </p>
@@ -613,7 +676,7 @@ export function AboutPage() {
                   <img
                     src={guruji.avatar}
                     alt={guruji.name}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-[#B88935]/50 shrink-0"
+                    className="w-14 h-14 rounded-full object-cover object-top border-2 border-[#B88935]/50 shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -655,9 +718,10 @@ export function AboutPage() {
                   </button>
                   <button
                     onClick={() => openBooking(guruji.id)}
-                    className="flex-1 py-1.5 px-2 rounded-lg bg-[#5A1717] hover:bg-[#6D1B1B] text-amber-200 text-xs font-bold text-center transition-colors cursor-pointer"
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-[#5A1717] hover:bg-[#6D1B1B] text-amber-200 text-xs font-bold text-center transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
-                    Book Puja
+                    <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>Book Puja</span>
                   </button>
                 </div>
               </div>
@@ -765,58 +829,6 @@ export function AboutPage() {
           </div>
         </section>
 
-        {/* =========================================================================
-            SECTION 14 & 15: KNOWLEDGE PLATFORM & SPIRITUAL ARTICLES
-            ========================================================================= */}
-        <section className="bg-gradient-to-br from-[#5A1717] to-[#3B0E0E] text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-[#B88935]/40 space-y-6">
-          <div className="max-w-3xl space-y-3">
-            <span className="text-[11px] uppercase tracking-widest text-amber-300 font-bold font-heading">
-              ज्ञानाचा प्रवास • BEYOND A BOOKING PORTAL
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-heading font-bold text-white">
-              An Authentic Repository of Sanatan Wisdom
-            </h2>
-            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-sans">
-              Our platform serves as an open knowledge repository for pilgrims, scholars, and spiritual seekers wanting to understand Trimbakeshwar history, Vedic mantras, and scriptural guidelines.
-            </p>
-          </div>
-
-          {/* Quick Knowledge Links */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
-              onClick={() => navigate('/temple')}
-              className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-amber-300/50 transition-all text-left group cursor-pointer"
-            >
-              <TempleIcon className="w-5 h-5 text-amber-300 mb-1" />
-              <div className="text-xs font-bold text-white group-hover:text-amber-300 mt-1">Temple Heritage</div>
-              <div className="text-[10px] text-stone-400">History & Architecture</div>
-            </button>
-            <button
-              onClick={() => navigate('/articles')}
-              className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-amber-300/50 transition-all text-left group cursor-pointer"
-            >
-              <VedicScrollIcon className="w-5 h-5 text-amber-300 mb-1" />
-              <div className="text-xs font-bold text-white group-hover:text-amber-300 mt-1">Spiritual Articles</div>
-              <div className="text-[10px] text-stone-400">Shastra & Vidhi Guides</div>
-            </button>
-            <button
-              onClick={() => navigate('/gallery')}
-              className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-amber-300/50 transition-all text-left group cursor-pointer"
-            >
-              <TempleIcon className="w-5 h-5 text-amber-300 mb-1" />
-              <div className="text-xs font-bold text-white group-hover:text-amber-300 mt-1">Visual Archive</div>
-              <div className="text-[10px] text-stone-400">Photos & Collections</div>
-            </button>
-            <button
-              onClick={() => navigate('/darshan')}
-              className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-amber-300/50 transition-all text-left group cursor-pointer"
-            >
-              <Clock className="w-5 h-5 text-amber-300 mb-1" />
-              <div className="text-xs font-bold text-white group-hover:text-amber-300 mt-1">Darshan Timings</div>
-              <div className="text-[10px] text-stone-400">Aarti & Mukut Darshan</div>
-            </button>
-          </div>
-        </section>
 
         {/* =========================================================================
             SECTION 16: MULTILINGUAL MISSION (10 Indian Languages)
@@ -972,7 +984,16 @@ export function AboutPage() {
                 <span className="text-stone-400 block text-[10px] uppercase font-bold">Official Mandir Address</span>
                 <div className="flex items-start gap-2 mt-0.5">
                   <MapPin className="w-4 h-4 text-[#C56A18] shrink-0 mt-0.5" />
-                  <span>{ORGANIZATION_DATA.officialAddress}</span>
+                  <a
+                    href="https://share.google/YsotIiu38IlI8yFEu"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline text-[#5A1717] font-semibold flex items-center gap-1 group"
+                    title="Open in Google Maps"
+                  >
+                    <span>{ORGANIZATION_DATA.officialAddress}</span>
+                    <span className="text-[10px] text-amber-600 underline ml-1 font-normal">(View on Google Maps)</span>
+                  </a>
                 </div>
               </div>
 
@@ -1112,6 +1133,64 @@ export function AboutPage() {
           </div>
         </section>
       </div>
+
+      {/* =========================================================================
+          IMAGE PREVIEW / LIGHTBOX MODAL
+          ========================================================================= */}
+      {selectedPreviewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 transition-all animate-in fade-in duration-200"
+          onClick={() => setSelectedPreviewImage(null)}
+        >
+          <div
+            className="relative bg-gradient-to-b from-[#2B0E0E] to-[#140606] border-2 border-[#D4AF37]/70 rounded-3xl overflow-hidden max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-amber-400/20 flex items-center justify-between bg-black/40">
+              <div className="space-y-0.5 pr-4">
+                <div className="inline-block px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold font-devanagari">
+                  {selectedPreviewImage.badge}
+                </div>
+                <h3 className="text-base sm:text-xl font-bold font-heading text-amber-100 font-devanagari leading-snug">
+                  {selectedPreviewImage.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewImage(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm transition-colors shrink-0 border border-white/20 cursor-pointer"
+                title="Close (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Image View Area */}
+            <div className="p-3 sm:p-6 flex-1 overflow-auto flex items-center justify-center bg-black/70 min-h-[300px]">
+              <img
+                src={selectedPreviewImage.src}
+                alt={selectedPreviewImage.alt}
+                className="max-h-[64vh] w-auto max-w-full object-contain rounded-xl shadow-2xl border border-amber-400/20"
+              />
+            </div>
+
+            {/* Modal Footer Description */}
+            <div className="p-4 sm:p-5 border-t border-amber-400/20 bg-black/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <p className="text-stone-300 font-devanagari text-xs sm:text-[13px] leading-relaxed max-w-2xl">
+                {selectedPreviewImage.description}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewImage(null)}
+                className="px-5 py-2 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-400/40 text-xs font-bold transition-all shrink-0 cursor-pointer"
+              >
+                बंद करा (Close)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

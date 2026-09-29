@@ -57,8 +57,8 @@ export const ORGANIZATION_DATA: OrganizationInfo = {
   verifiedBy: 'Local Purohit Sangh Documentation / Subject to verification',
   officialAddress: 'Shri Ganga Godavari Mandir, 1st Floor, Kushavart Tirth Chowk, Trimbakeshwar, Dist. Nashik, Maharashtra - 422212',
   backOfficeAddress: 'Nashik-Trimbak Road, Dist. Nashik, Maharashtra - 422009',
-  helpline: '+91 2594 222 108 / +91 98220 11008',
-  email: 'seva@trimbakeshwar-jyotirlinga.org',
+  helpline: '+91 96899 73967',
+  email: 'trimbak.tirthapurohit@gmail.com',
   officeHours: '06:00 AM to 08:30 PM (All 7 Days)',
   disclaimer: 'This platform serves as a transparent digital communication bridge between pilgrims and listed traditional Purohits. The portal does not conduct rituals directly; religious rites are performed by independent, verified Purohits according to Shastra traditions.',
 };

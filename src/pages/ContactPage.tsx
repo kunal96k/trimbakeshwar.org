@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../context/NavigationContext';
 import {
   CONTACT_ENTITIES,
-  ADDRESS_ENTITIES,
   QUICK_CONTACT_ACTIONS,
   CONTACT_FAQS,
   CONTACT_LOCALIZED_TEXT,
@@ -34,6 +33,7 @@ import {
   Info,
 } from 'lucide-react';
 import { SacredMandala, TrishulIcon } from '../components/Motifs';
+import { submitContactEnquiry } from '../services/enquiryService';
 
 export function ContactPage() {
   const { currentRoute, navigate, openBooking } = useNavigation();
@@ -131,10 +131,6 @@ export function ContactPage() {
       newErrors.message = activeLang === 'mr' ? 'संदेश किमान १० अक्षरांचा असावा.' : activeLang === 'hi' ? 'संदेश कम से कम १० अक्षरों का होना चाहिए।' : 'Message should be at least 10 characters long.';
     }
 
-    if (!formData.privacyConsent) {
-      newErrors.privacyConsent = activeLang === 'mr' ? 'पुढे जाण्यासाठी गोपनीयता धोरण स्वीकारा.' : activeLang === 'hi' ? 'आगे बढ़ने के लिए कृपया गोपनीयता नीति स्वीकार करें।' : 'Please accept the Privacy Policy to continue.';
-    }
-
     // Honeypot check
     if (formData.botField) {
       newErrors.botField = 'Spam detected.';
@@ -144,8 +140,8 @@ export function ContactPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Form Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  // Form Submit Handler connecting directly to Spring Boot Backend API
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
       return;
@@ -153,9 +149,22 @@ export function ContactPage() {
 
     setIsSubmitting(true);
 
-    // Simulate secure backend submission & reference creation
-    setTimeout(() => {
-      const generatedId = `TRK-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    try {
+      // 1. Send devotee contact enquiry directly to backend Spring Boot API (POST /api/contact)
+      const apiResponse = await submitContactEnquiry({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        subject: formData.subject,
+        poojaRequested: formData.subject,
+        message: formData.message.trim(),
+        preferredContactMethod: formData.preferredContactMethod,
+        language: formData.languagePreference,
+        botField: formData.botField,
+      });
+
+      const generatedId = apiResponse.enquiryNumber || apiResponse.leadCode || `TRK-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
       const newEnquiry: ContactEnquiry = {
         id: `enquiry-${Date.now()}`,
         enquiryNumber: generatedId,
@@ -171,7 +180,7 @@ export function ContactPage() {
         createdAt: new Date().toISOString(),
       };
 
-      // Safely persist to localStorage for admin inspection without leaking PII
+      // 2. Persist to local devotee store for fast local inspection
       try {
         const stored = JSON.parse(localStorage.getItem('trimbak_devotee_enquiries') || '[]');
         stored.unshift(newEnquiry);
@@ -180,9 +189,27 @@ export function ContactPage() {
         // storage fallback
       }
 
-      setIsSubmitting(false);
       setSubmittedEnquiry(newEnquiry);
-    }, 600);
+    } catch (error) {
+      console.error('Submission error:', error);
+      const fallbackId = `TRK-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      setSubmittedEnquiry({
+        id: `enquiry-${Date.now()}`,
+        enquiryNumber: fallbackId,
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        subject: formData.subject,
+        message: formData.message.trim(),
+        preferredContactMethod: formData.preferredContactMethod,
+        language: formData.languagePreference,
+        source: 'contact_page',
+        status: 'New',
+        createdAt: new Date().toISOString(),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Reset Form
@@ -291,11 +318,10 @@ export function ContactPage() {
               <button
                 key={code}
                 onClick={() => setActiveLang(code)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                  activeLang === code
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${activeLang === code
                     ? 'bg-[#B88935] text-[#211D19] font-bold shadow-xs'
                     : 'bg-black/30 hover:bg-black/50 text-white/80 border border-white/10'
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -314,20 +340,20 @@ export function ContactPage() {
               activeLang === 'mr'
                 ? action.title.mr
                 : activeLang === 'hi'
-                ? action.title.hi
-                : action.title.en;
+                  ? action.title.hi
+                  : action.title.en;
             const subtitle =
               activeLang === 'mr'
                 ? action.subtitle.mr
                 : activeLang === 'hi'
-                ? action.subtitle.hi
-                : action.subtitle.en;
+                  ? action.subtitle.hi
+                  : action.subtitle.en;
             const cta =
               activeLang === 'mr'
                 ? action.ctaText.mr
                 : activeLang === 'hi'
-                ? action.ctaText.hi
-                : action.ctaText.en;
+                  ? action.ctaText.hi
+                  : action.ctaText.en;
 
             return (
               <div
@@ -476,14 +502,14 @@ export function ContactPage() {
                 {/* Direct Action Buttons */}
                 <div className="pt-2 grid grid-cols-2 gap-2">
                   <a
-                    href="tel:+912594222108"
+                    href="tel:+919689973967"
                     className="py-2.5 px-3 rounded-xl bg-[#5A1717] hover:bg-[#6D1B1B] text-amber-200 text-xs font-bold text-center transition-colors flex items-center justify-center gap-1.5 shadow-xs"
                   >
                     <Phone className="w-3.5 h-3.5" />
                     <span>Call Helpline</span>
                   </a>
                   <a
-                    href={`https://wa.me/919822011008?text=${encodeURIComponent('Namaskar Guruji, I would like guidance regarding Trimbakeshwar Puja.')}`}
+                    href={`https://wa.me/919689973967?text=${encodeURIComponent('Namaskar Guruji, I would like guidance regarding Trimbakeshwar Puja.')}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold text-center transition-colors flex items-center justify-center gap-1.5 shadow-xs"
@@ -491,60 +517,6 @@ export function ContactPage() {
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>WhatsApp Seva</span>
                   </a>
-                </div>
-              </div>
-
-              {/* Address Cards (CMS Controlled) */}
-              <div className="bg-white border border-stone-200 rounded-3xl p-6 shadow-xs space-y-4">
-                <div className="text-xs font-bold text-[#5A1717] uppercase tracking-wider pb-2 border-b border-stone-100 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-[#C56A18]" />
-                  <span>{t.addressHeading}</span>
-                </div>
-
-                <div className="space-y-4">
-                  {ADDRESS_ENTITIES.map((addr) => (
-                    <div
-                      key={addr.id}
-                      className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200 space-y-2 text-xs"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="font-bold text-[#5A1717] block text-xs">
-                            {addr.title}
-                          </span>
-                          <span className="text-[10px] text-stone-500 font-devanagari">
-                            {addr.nativeTitle}
-                          </span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md bg-stone-200/80 text-stone-700 text-[9px] font-semibold uppercase">
-                          {addr.verificationStatus}
-                        </span>
-                      </div>
-
-                      <p className="text-stone-700 leading-relaxed text-[11px]">
-                        {addr.fullAddress}, {addr.city}, {addr.state} - {addr.pincode}
-                      </p>
-
-                      {addr.officeHours && (
-                        <div className="text-[10px] text-stone-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-[#C56A18]" />
-                          <span>{addr.officeHours}</span>
-                        </div>
-                      )}
-
-                      <div className="pt-1.5">
-                        <a
-                          href={addr.googleMapsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#5A1717] hover:text-[#C56A18] transition-colors"
-                        >
-                          <span>{t.viewOnMapBtn}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
@@ -635,11 +607,10 @@ export function ContactPage() {
                         value={formData.name}
                         onChange={handleChange}
                         placeholder={t.namePlaceholder}
-                        className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${
-                          errors.name
+                        className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${errors.name
                             ? 'border-red-400 bg-red-50/50 focus:border-red-600 focus:ring-red-600'
                             : 'border-stone-300 bg-white focus:border-[#5A1717] focus:ring-1 focus:ring-[#5A1717]'
-                        }`}
+                          }`}
                       />
                       {errors.name && (
                         <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
@@ -663,11 +634,10 @@ export function ContactPage() {
                           value={formData.email}
                           onChange={handleChange}
                           placeholder={t.emailPlaceholder}
-                          className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${
-                            errors.email
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${errors.email
                               ? 'border-red-400 bg-red-50/50 focus:border-red-600'
                               : 'border-stone-300 bg-white focus:border-[#5A1717] focus:ring-1 focus:ring-[#5A1717]'
-                          }`}
+                            }`}
                         />
                         {errors.email && (
                           <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
@@ -689,11 +659,10 @@ export function ContactPage() {
                           value={formData.phone}
                           onChange={handleChange}
                           placeholder={t.phonePlaceholder}
-                          className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${
-                            errors.phone
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${errors.phone
                               ? 'border-red-400 bg-red-50/50 focus:border-red-600'
                               : 'border-stone-300 bg-white focus:border-[#5A1717] focus:ring-1 focus:ring-[#5A1717]'
-                          }`}
+                            }`}
                         />
                         {errors.phone && (
                           <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
@@ -740,89 +709,15 @@ export function ContactPage() {
                         value={formData.message}
                         onChange={handleChange}
                         placeholder={t.messagePlaceholder}
-                        className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${
-                          errors.message
+                        className={`w-full px-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-colors ${errors.message
                             ? 'border-red-400 bg-red-50/50 focus:border-red-600'
                             : 'border-stone-300 bg-white focus:border-[#5A1717] focus:ring-1 focus:ring-[#5A1717]'
-                        }`}
+                          }`}
                       />
                       {errors.message && (
                         <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
                           <AlertCircle className="w-3 h-3 shrink-0" />
                           <span>{errors.message}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Contact Preferences: Method & Language */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                      <div className="space-y-1">
-                        <label htmlFor="contact-pref-method" className="block text-xs font-semibold text-stone-700">
-                          {t.preferredMethodLabel}
-                        </label>
-                        <select
-                          id="contact-pref-method"
-                          name="preferredContactMethod"
-                          value={formData.preferredContactMethod}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-stone-50 text-xs text-stone-800"
-                        >
-                          <option value="phone">Phone Call (दूरध्वनी)</option>
-                          <option value="whatsapp">WhatsApp Message</option>
-                          <option value="email">Email</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label htmlFor="contact-pref-lang" className="block text-xs font-semibold text-stone-700">
-                          {t.languagePreferenceLabel}
-                        </label>
-                        <select
-                          id="contact-pref-lang"
-                          name="languagePreference"
-                          value={formData.languagePreference}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-stone-50 text-xs text-stone-800"
-                        >
-                          <option value="en">English</option>
-                          <option value="mr">मराठी (Marathi)</option>
-                          <option value="hi">हिंदी (Hindi)</option>
-                          <option value="gu">ગુજરાતી (Gujarati)</option>
-                          <option value="te">తెలుగు (Telugu)</option>
-                          <option value="kn">ಕನ್ನಡ (Kannada)</option>
-                          <option value="ta">தமிழ் (Tamil)</option>
-                          <option value="bn">বাংলা (Bengali)</option>
-                          <option value="or">ଓଡ଼ିଆ (Odia)</option>
-                          <option value="sa">संस्कृतम् (Sanskrit)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Privacy Policy Checkbox */}
-                    <div className="pt-2">
-                      <label className="flex items-start gap-2.5 text-xs text-stone-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="privacyConsent"
-                          checked={formData.privacyConsent}
-                          onChange={handleChange}
-                          className="mt-0.5 w-4 h-4 rounded text-[#5A1717] focus:ring-[#5A1717] border-stone-300 cursor-pointer"
-                        />
-                        <span>
-                          {t.privacyConsent}{' '}
-                          <button
-                            type="button"
-                            onClick={() => navigate('/about')}
-                            className="text-[#5A1717] underline font-semibold hover:text-[#C56A18]"
-                          >
-                            {t.privacyLinkText}
-                          </button>
-                        </span>
-                      </label>
-                      {errors.privacyConsent && (
-                        <p className="text-[11px] text-red-600 flex items-center gap-1 mt-1 pl-6">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>{errors.privacyConsent}</span>
                         </p>
                       )}
                     </div>
@@ -886,24 +781,37 @@ export function ContactPage() {
             {t.pujaHelpDesc}
           </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {PUJA_LIST.map((p) => (
               <button
                 key={p.id}
                 onClick={() => navigate(`/puja/${p.slug}` as AppRoute)}
-                className="p-3 rounded-2xl bg-[#FBF6EA] border border-stone-200 hover:border-[#B88935] transition-all text-center space-y-1.5 group cursor-pointer"
+                className="rounded-2xl bg-white border border-stone-200 hover:border-[#B88935] hover:shadow-md transition-all text-left group cursor-pointer overflow-hidden flex flex-col"
               >
-                <div className="flex justify-center group-hover:scale-110 transition-transform">
-                  <TrishulIcon className="w-5 h-5 text-[#C56A18]" />
+                {/* Puja Image */}
+                <div className="relative h-32 overflow-hidden bg-stone-900 shrink-0">
+                  <img
+                    src={p.image || p.imageUrl || '/assets/trimbak/narayan-nagbali.webp'}
+                    alt={p.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] text-amber-300 font-devanagari border border-amber-400/30">
+                    {p.marathiName}
+                  </div>
                 </div>
-                <div className="text-xs font-heading font-bold text-[#5A1717] truncate">
-                  {p.name}
-                </div>
-                <div className="text-[10px] text-stone-500 font-devanagari truncate">
-                  {p.marathiName}
-                </div>
-                <div className="text-[10px] text-[#C56A18] font-semibold">
-                  {p.duration}
+                {/* Card Body */}
+                <div className="p-3 flex flex-col gap-1">
+                  <div className="text-xs font-heading font-bold text-[#5A1717] leading-tight">
+                    {p.name}
+                  </div>
+                  <div className="text-[10px] text-[#C56A18] font-semibold flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {p.duration}
+                  </div>
+                  <div className="text-[10px] text-stone-500 leading-tight line-clamp-2 mt-0.5">
+                    {p.tagline}
+                  </div>
                 </div>
               </button>
             ))}
@@ -949,7 +857,7 @@ export function ContactPage() {
                   <img
                     src={g.avatar}
                     alt={g.name}
-                    className="w-12 h-12 rounded-full object-cover border border-[#B88935]/50 shrink-0"
+                    className="w-12 h-12 rounded-full object-cover object-top border border-[#B88935]/50 shrink-0"
                   />
                   <div className="min-w-0">
                     <h4 className="text-xs sm:text-sm font-heading font-bold text-[#5A1717] truncate">
@@ -1052,14 +960,14 @@ export function ContactPage() {
                 activeLang === 'mr'
                   ? faq.question.mr
                   : activeLang === 'hi'
-                  ? faq.question.hi
-                  : faq.question.en;
+                    ? faq.question.hi
+                    : faq.question.en;
               const answer =
                 activeLang === 'mr'
                   ? faq.answer.mr
                   : activeLang === 'hi'
-                  ? faq.answer.hi
-                  : faq.answer.en;
+                    ? faq.answer.hi
+                    : faq.answer.en;
 
               return (
                 <div
@@ -1074,9 +982,8 @@ export function ContactPage() {
                       {question}
                     </span>
                     <ChevronDown
-                      className={`w-4 h-4 text-stone-400 shrink-0 transition-transform duration-200 ${
-                        isOpen ? 'rotate-180 text-[#5A1717]' : ''
-                      }`}
+                      className={`w-4 h-4 text-stone-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#5A1717]' : ''
+                        }`}
                     />
                   </button>
 
@@ -1174,7 +1081,8 @@ export function ContactPage() {
             </button>
             <button
               onClick={() => openBooking()}
-              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#B88935] hover:bg-[#A3782E] transition-colors cursor-pointer"
+              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#B88935] hover:bg-[#A3782E] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              style={{ whiteSpace: 'nowrap' }}
             >
               Book Puja
             </button>

@@ -113,7 +113,7 @@ export function HowToReachSection({ currentLang }: HowToReachSectionProps) {
           </div>
 
           <a
-            href="https://maps.google.com/?q=Trimbakeshwar+Shiva+Temple+Nashik"
+            href="https://share.google/YsotIiu38IlI8yFEu"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full md:w-auto px-6 py-3 rounded-full text-xs sm:text-sm font-semibold text-[#211D19] bg-gradient-to-r from-amber-300 to-amber-400 hover:bg-amber-400 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 shrink-0"

@@ -40,10 +40,11 @@ export function MobileBottomBar() {
         {/* Highlighted Book Puja Button */}
         <button
           onClick={() => openBooking()}
-          className="flex items-center gap-1 py-1.5 px-3 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] shadow-sm active:scale-95 transition-transform cursor-pointer"
+          className="flex items-center gap-1 py-1.5 px-3 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] shadow-sm active:scale-95 transition-transform cursor-pointer whitespace-nowrap shrink-0"
+          style={{ whiteSpace: 'nowrap' }}
         >
-          <CalendarCheck className="w-3.5 h-3.5" />
-          <span>{navT.bookPuja}</span>
+          <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+          <span className="whitespace-nowrap shrink-0" style={{ whiteSpace: 'nowrap' }}>{navT.bookPuja}</span>
         </button>
       </div>
     </nav>
