@@ -55,3 +55,62 @@ body {
   background-size: 24px 24px;
 }
 
+/* Custom Scrollbar - Light Grey-Brown / Primary Color Thumb with Light Color Track */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F4EFEA;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #8E7567; /* Light grey brown */
+  border-radius: 9999px;
+  border: 2px solid #F4EFEA;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5A1717; /* Primary Vedic Maroon */
+  border-color: #EDE5DC;
+}
+
+/* Firefox standard scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #8E7567 #F4EFEA;
+}
+
+/* Custom Scrollbar Utility Classes */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F4EFEA;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #8E7567; /* Light grey brown / primary */
+  border-radius: 9999px;
+  border: 1.5px solid #F4EFEA;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5A1717; /* Primary color */
+}
+
+/* Hyperlinks & clickable elements: no underline throughout the project */
+a, button, [role="button"], span {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none !important;
+}
+
+

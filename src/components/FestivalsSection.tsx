@@ -44,7 +44,7 @@ export function FestivalsSection({ currentLang }: FestivalsSectionProps) {
             return (
               <div
                 key={fest.id}
-                className="bg-[#EDE3D1]/40 rounded-2xl border border-[#B88935]/30 overflow-hidden hover:bg-[#EDE3D1]/80 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group flex flex-col justify-between"
+                className="bg-[#EDE3D1]/40 rounded-2xl border border-[#B88935]/30 overflow-hidden hover:bg-[#EDE3D1]/80 hover:shadow-lg transition-all duration-300 group flex flex-col justify-between"
               >
                 <div className="relative h-48 overflow-hidden bg-stone-200">
                   <img

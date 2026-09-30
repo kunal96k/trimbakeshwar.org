@@ -243,8 +243,8 @@ export function Footer({ currentLang = 'en', onOpenBooking }: FooterProps) {
         </div>
 
         {/* Bottom Sub-Footer Bar */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="pt-8 flex flex-col lg:flex-row items-center justify-between gap-4 text-xs text-stone-500">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
             <span>© {new Date().getFullYear()} {ft.copyright}</span>
             <button onClick={() => navigate('/about')} className="hover:text-stone-300">About</button>
             <button onClick={() => navigate('/contact')} className="hover:text-stone-300">Contact</button>
@@ -253,16 +253,30 @@ export function Footer({ currentLang = 'en', onOpenBooking }: FooterProps) {
             <button onClick={() => navigate('/gallery')} className="hover:text-stone-300">Gallery</button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-devanagari text-amber-400/90">{ft.harHarMahadev}</span>
-            <button
-              onClick={scrollToTop}
-              className="p-2 rounded-full bg-stone-800 hover:bg-[#5A1717] text-stone-300 hover:text-white transition-colors cursor-pointer"
-              title="Scroll to top"
-              aria-label="Scroll to top"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </button>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <span className="text-stone-400">
+              Developed by{' '}
+              <a
+                href="https://www.technokraftservices.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-400 hover:text-amber-300 font-semibold transition-colors no-underline"
+              >
+                Technokraft Services LLP
+              </a>
+            </span>
+
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-devanagari text-amber-400/90">{ft.harHarMahadev}</span>
+              <button
+                onClick={scrollToTop}
+                className="p-2 rounded-full bg-stone-800 hover:bg-[#5A1717] text-stone-300 hover:text-white transition-colors cursor-pointer"
+                title="Scroll to top"
+                aria-label="Scroll to top"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

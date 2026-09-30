@@ -157,7 +157,7 @@ export function PujaSection({ currentLang, onOpenBooking }: PujaSectionProps) {
               <div
                 key={puja.id}
                 id={`puja-card-${puja.slug}`}
-                className="flex flex-col justify-between bg-[#FBF6EA] rounded-2xl border border-[#B88935]/30 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
+                className="flex flex-col justify-between bg-[#FBF6EA] rounded-2xl border border-[#B88935]/30 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
               >
                 {/* Card Image Banner */}
                 <div className="relative h-48 overflow-hidden bg-stone-200">
@@ -256,11 +256,11 @@ export function PujaSection({ currentLang, onOpenBooking }: PujaSectionProps) {
 
               return (
                 <>
-                  <div className="mb-4">
+                  <div className="mb-5 flex flex-col gap-1 sm:gap-1.5">
                     <span className="text-xs font-semibold uppercase tracking-wider text-[#C56A18] font-sans">
                       {modalCategory} • {modalLabels.categorySubtitle}
                     </span>
-                    <h3 className="text-2xl sm:text-3xl font-bold font-sanskrit text-[#5A1717] mt-1">
+                    <h3 className="text-2xl sm:text-3xl font-bold font-sanskrit text-[#5A1717] leading-snug">
                       {selectedPuja.sanskritName}
                     </h3>
                     <div className="text-base font-heading italic text-stone-600">

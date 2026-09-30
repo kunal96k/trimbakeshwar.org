@@ -23,23 +23,34 @@ export interface Booking {
   id: string;
   devoteeName: string;
   phone: string;
+  email?: string;
   poojaType: string;
   date: string;
   time: string;
   location: string;
-  status: 'in_progress' | 'upcoming' | 'completed' | 'cancelled';
+  status: 'in_progress' | 'upcoming' | 'completed' | 'cancelled' | 'pending_verification';
   statusLabel: string;
   gotra: string;
   city: string;
+  state?: string;
+  devoteeAddress?: string;
+  poojaAddress?: string;
   familyMembersCount: number;
   advanceAmount: number;
   totalPoojaDakshina: string;
   qrStatus: PaymentStatus;
   utrNumber?: string;
-  paymentApp?: 'Google Pay' | 'PhonePe' | 'Paytm' | 'BHIM UPI';
+  paymentApp?: 'Google Pay' | 'PhonePe' | 'Paytm' | 'BHIM UPI' | string;
+  paymentMethod?: string;
+  createdByName?: string;
+  assignedGuruji?: string;
+  language?: string;
   bookingDate: string;
   screenshotTimestamp?: string;
+  paymentScreenshot?: string;
   notes?: string;
+  emailSent?: boolean;
+  emailSentAt?: string;
 }
 
 export interface DevoteeLead {

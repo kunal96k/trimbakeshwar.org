@@ -50,12 +50,17 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   const filteredBookings = bookings.filter((b) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    const name = String(b.devoteeName || '').toLowerCase();
+    const phone = String(b.phone || '');
+    const pooja = String(b.poojaType || '').toLowerCase();
+    const id = String(b.id || '').toLowerCase();
+    const city = String(b.city || '').toLowerCase();
     return (
-      b.devoteeName.toLowerCase().includes(q) ||
-      b.phone.includes(q) ||
-      b.poojaType.toLowerCase().includes(q) ||
-      b.id.toLowerCase().includes(q) ||
-      b.city.toLowerCase().includes(q)
+      name.includes(q) ||
+      phone.includes(q) ||
+      pooja.includes(q) ||
+      id.includes(q) ||
+      city.includes(q)
     );
   });
 
@@ -65,12 +70,14 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   const newLeadsCount = leads.filter((l) => l.status === 'new').length;
   const totalAdvanceCollected = bookings
     .filter((b) => b.qrStatus === 'verified')
-    .reduce((sum, b) => sum + b.advanceAmount, 0);
+    .reduce((sum, b) => sum + (b.advanceAmount || 1000), 0);
 
-  // Today's scheduled vidhis
-  const todaySchedule = filteredBookings.filter(
-    (b) => b.status === 'in_progress' || b.date.includes('29 September')
+  // Today's scheduled vidhis (or upcoming if none today)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayOnly = filteredBookings.filter(
+    (b) => b.status === 'in_progress' || (Boolean(b.date) && (String(b.date).includes(todayStr) || String(b.date).toLowerCase().includes('today')))
   );
+  const todaySchedule = todayOnly.length > 0 ? todayOnly : filteredBookings.slice(0, 5);
 
   // Latest 4 bookings for the QR screenshot verification widget
   const recentBookingsList = filteredBookings.slice(0, 4);
@@ -109,10 +116,10 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-amber-200">
-              142 Bookings
+              {totalBookingsCount} Bookings
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
-              <span className="text-emerald-400 font-medium">+14% this month</span>
+              <span className="text-emerald-400 font-medium">Sacred Kushavarta Ledger</span>
               <ChevronRight className="w-3.5 h-3.5 text-stone-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
             </div>
           </div>
@@ -131,10 +138,12 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-rose-300">
-              4 Devotees
+              {pendingQRCount} {pendingQRCount === 1 ? 'Devotee' : 'Devotees'}
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
-              <span className="text-rose-400 font-medium">Action Required</span>
+              <span className="text-rose-400 font-medium">
+                {pendingQRCount > 0 ? 'Action Required' : 'All Clear'}
+              </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
                 Review
               </span>
@@ -155,7 +164,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-blue-200">
-              9 Inquiries
+              {newLeadsCount} {newLeadsCount === 1 ? 'Inquiry' : 'Inquiries'}
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
               <span className="text-blue-300">Avg response 15 min</span>
@@ -325,7 +334,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     {/* Direct "Call" / "WhatsApp" buttons */}
                     <div className="flex items-center gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-800">
                       <a
-                        href={`tel:${item.phone.replace(/\s+/g, '')}`}
+                        href={`tel:${String(item.phone || '').replace(/\s+/g, '')}`}
                         className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-stone-950 border border-amber-400/30 text-xs font-semibold transition-colors flex items-center gap-1"
                         title="Direct Call Devotee"
                       >
@@ -334,7 +343,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                       </a>
 
                       <a
-                        href={`https://wa.me/${item.phone.replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar,%20regarding%20your%20scheduled%20${encodeURIComponent(item.poojaType)}%20with%20Pt.%20Pravin%20Shambhu%20Deshmukh%20(Desai)%20Guruji.`}
+                        href={`https://wa.me/${String(item.phone || '').replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar,%20regarding%20your%20scheduled%20${encodeURIComponent(item.poojaType || 'Puja')}%20with%20Pt.%20Pravin%20Shambhu%20Deshmukh%20(Desai)%20Guruji.`}
                         target="_blank"
                         rel="noreferrer"
                         className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-stone-950 border border-emerald-400/30 text-xs font-semibold transition-colors flex items-center gap-1"
@@ -474,73 +483,87 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {leads.slice(0, 4).map((lead) => (
-            <div
-              key={lead.id}
-              className="p-4 rounded-2xl bg-black/45 border border-amber-500/15 hover:border-amber-400/40 transition-colors space-y-2.5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-sm text-stone-100">{lead.name}</span>
-                    {lead.enquiryNumber && (
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                        {lead.enquiryNumber}
-                      </span>
-                    )}
-                    {lead.isDatabaseSaved && (
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                        DB Saved
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-amber-300/90 font-medium">
-                    {lead.city} • <span className="text-stone-300">{lead.poojaRequested}</span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${lead.status === 'new' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
-                    {lead.status === 'new' ? 'New' : 'Contacted'}
-                  </span>
-                  <div className="text-[10px] text-stone-400 font-mono mt-1">{lead.timeAgo}</div>
-                </div>
-              </div>
-
-              <p className="text-xs text-stone-300/90 bg-stone-900/60 p-2.5 rounded-xl border border-stone-800 italic leading-relaxed">
-                "{lead.query}"
-              </p>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-stone-400 font-mono">
-                  {lead.phone}
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`tel:${lead.phone.replace(/\s+/g, '')}`}
-                    onClick={() => onLeadContacted(lead.id)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-semibold flex items-center gap-1"
-                  >
-                    <Phone className="w-3 h-3" />
-                    <span>Call</span>
-                  </a>
-
-                  <a
-                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar%20${encodeURIComponent(lead.name)},%20regarding%20your%20inquiry%20for%20${encodeURIComponent(lead.poojaRequested)}.`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => onLeadContacted(lead.id)}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold flex items-center gap-1"
-                  >
-                    <MessageCircle className="w-3 h-3" />
-                    <span>WhatsApp</span>
-                  </a>
-                </div>
-              </div>
+        {leads.length === 0 ? (
+          <div className="py-10 px-6 rounded-2xl bg-black/30 border border-amber-500/10 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+              <MessageSquareQuote className="w-6 h-6" />
             </div>
-          ))}
-        </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-100">No Devotee Enquiries Yet</p>
+              <p className="text-xs text-stone-400 max-w-md mx-auto mt-1">
+                Real enquiries submitted by devotees from the website contact form will appear here automatically and synchronize with the database.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {leads.slice(0, 4).map((lead) => (
+              <div
+                key={lead.id}
+                className="p-4 rounded-2xl bg-black/45 border border-amber-500/15 hover:border-amber-400/40 transition-colors space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-sm text-stone-100">{lead.name}</span>
+                      {lead.enquiryNumber && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          {lead.enquiryNumber}
+                        </span>
+                      )}
+                      {lead.isDatabaseSaved && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          DB Saved
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-amber-300/90 font-medium">
+                      {lead.city} • <span className="text-stone-300">{lead.poojaRequested}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${lead.status === 'new' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
+                      {lead.status === 'new' ? 'New' : 'Contacted'}
+                    </span>
+                    <div className="text-[10px] text-stone-400 font-mono mt-1">{lead.timeAgo}</div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-stone-300/90 bg-stone-900/60 p-2.5 rounded-xl border border-stone-800 italic leading-relaxed">
+                  "{lead.query}"
+                </p>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-stone-400 font-mono">
+                    {lead.phone}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${String(lead.phone || '').replace(/\s+/g, '')}`}
+                      onClick={() => onLeadContacted(lead.id)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-semibold flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" />
+                      <span>Call</span>
+                    </a>
+
+                    <a
+                      href={`https://wa.me/${String(lead.phone || '').replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar%20${encodeURIComponent(lead.name || '')},%20regarding%20your%20inquiry%20for%20${encodeURIComponent(lead.poojaRequested || 'Puja')}.`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => onLeadContacted(lead.id)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold flex items-center gap-1"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>

@@ -19,12 +19,8 @@ import {
   ChevronRight,
   LogOut,
   Sparkles,
-  ShieldAlert,
-  HelpCircle,
   KeyRound,
   User,
-  AlertTriangle,
-  CheckCircle2,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -66,7 +62,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 
   // Shortened Navigation Items for clean ergonomics
   const navItems = [
@@ -80,21 +75,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       id: 'bookings' as AdminTab,
       label: 'Bookings',
       icon: CalendarCheck,
-      badge: '3 New',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
+      badge: null,
     },
     {
       id: 'inquiries' as AdminTab,
       label: 'Inquiries',
       icon: MessageSquareQuote,
-      badge: newLeadsCount > 0 ? `${newLeadsCount}` : '9',
-      badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      badge: newLeadsCount > 0 ? `${newLeadsCount}` : null,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     },
     {
       id: 'payments' as AdminTab,
       label: 'Payments',
       icon: QrCode,
-      badge: pendingQRCount > 0 ? `${pendingQRCount} Pending` : '4 Pending',
+      badge: pendingQRCount > 0 ? `${pendingQRCount}` : null,
       badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
     },
     {
@@ -152,122 +146,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>New Booking</span>
           </button>
-
-          {/* Status Test Dropdown (Shortened button label) */}
-          <div className="relative">
-            <button
-              onClick={() => setStatusMenuOpen(!statusMenuOpen)}
-              className="px-2.5 py-1.5 rounded-xl bg-black/40 hover:bg-amber-500/10 border border-amber-400/20 text-stone-300 hover:text-amber-200 text-xs flex items-center gap-1.5 transition-colors"
-              title="Test System Status & Android Notifications"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[11px]">Status</span>
-            </button>
-
-            {statusMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setStatusMenuOpen(false)} />
-                <div className="absolute right-0 top-10 z-50 w-52 bg-[#1A0D0A] border border-amber-500/30 rounded-2xl shadow-2xl p-2 text-xs animate-in fade-in duration-100">
-                  <div className="px-2 py-1.5 text-[10px] font-mono text-stone-400 border-b border-stone-800">
-                    PREVIEW HTTP ERROR CODES
-                  </div>
-                  <button
-                    onClick={() => {
-                      onTriggerStatusPage('404');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-stone-200 flex items-center justify-between"
-                  >
-                    <span>404 · Page Not Found</span>
-                    <span className="text-[10px] text-rose-400 font-mono">Test</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerStatusPage('403');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-stone-200 flex items-center justify-between"
-                  >
-                    <span>403 · Access Forbidden</span>
-                    <span className="text-[10px] text-amber-400 font-mono">Test</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerStatusPage('500');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-stone-200 flex items-center justify-between"
-                  >
-                    <span>500 · Internal Server Error</span>
-                    <span className="text-[10px] text-rose-400 font-mono">Test</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerStatusPage('502');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-stone-200 flex items-center justify-between"
-                  >
-                    <span>502 · Bad Gateway (15s)</span>
-                    <span className="text-[10px] text-amber-400 font-mono">Test</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerStatusPage('503');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-stone-200 flex items-center justify-between"
-                  >
-                    <span>503 · Scheduled Maintenance</span>
-                    <span className="text-[10px] text-emerald-400 font-mono">Test</span>
-                  </button>
-
-                  <div className="px-2 py-1.5 mt-1 text-[10px] font-mono text-stone-400 border-t border-b border-stone-800">
-                    ANDROID NOTIFICATIONS (SWIPEABLE)
-                  </div>
-                  <button
-                    onClick={() => {
-                      onTriggerNotificationTest?.('error');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-500/15 text-rose-200 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                      <span>UTR Payment Error</span>
-                    </span>
-                    <span className="text-[10px] text-rose-400 font-mono">Swipe</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerNotificationTest?.('warning');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-500/15 text-amber-200 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Token Verification Alert</span>
-                    </span>
-                    <span className="text-[10px] text-amber-400 font-mono">Swipe</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onTriggerNotificationTest?.('success');
-                      setStatusMenuOpen(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-emerald-500/15 text-emerald-200 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Puja Dakshina Confirmed</span>
-                    </span>
-                    <span className="text-[10px] text-emerald-400 font-mono">Swipe</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
 
           {/* Notification Bell with animated unread badge */}
           <button
@@ -446,7 +324,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           {/* Sidebar Footer Link: View Live Public Website */}
-          <div className="p-4 border-t border-amber-500/20 space-y-2">
+          <div className="p-4 border-t border-amber-500/20">
             <button
               onClick={() => (onExitAdmin ? onExitAdmin() : (window.location.href = '/'))}
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-black/40 border border-amber-400/20 text-xs text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer text-left"
@@ -457,10 +335,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </span>
               <ChevronRight className="w-4 h-4 text-stone-500" />
             </button>
-
-            <div className="text-[10px] text-stone-400 text-center font-mono pt-1">
-              Shri Trimbakeshwar Purohit Admin v2.4
-            </div>
           </div>
         </aside>
 
@@ -473,9 +347,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         )}
 
         {/* 3. MAIN DASHBOARD CONTENT AREA */}
-        <main className="flex-1 h-full overflow-y-auto min-h-0 p-3.5 sm:p-6 lg:p-8 space-y-6 pb-28 lg:pb-10">
+        <main className="flex-1 h-full overflow-y-auto min-h-0 p-3.5 sm:p-6 lg:p-8 space-y-6 pb-28 lg:pb-8 flex flex-col justify-between custom-scrollbar">
           {/* Children renders active tab */}
-          {children}
+          <div className="flex-1">
+            {children}
+          </div>
         </main>
       </div>
 

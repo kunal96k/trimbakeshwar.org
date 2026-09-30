@@ -31,7 +31,7 @@ export function ArticlesSection({ currentLang }: ArticlesSectionProps) {
           {ARTICLES_LIST.map((article) => (
             <div
               key={article.id}
-              className="bg-[#EDE3D1]/40 rounded-2xl border border-[#B88935]/30 overflow-hidden hover:bg-[#EDE3D1]/80 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group flex flex-col justify-between"
+              className="bg-[#EDE3D1]/40 rounded-2xl border border-[#B88935]/30 overflow-hidden hover:bg-[#EDE3D1]/80 hover:shadow-lg transition-all duration-300 group flex flex-col justify-between"
             >
               <div className="relative h-44 overflow-hidden bg-stone-200">
                 <img
@@ -100,11 +100,11 @@ export function ArticlesSection({ currentLang }: ArticlesSectionProps) {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="mb-4">
+            <div className="mb-5 flex flex-col gap-1 sm:gap-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#C56A18] font-sans">
                 {selectedArticle.category} • {selectedArticle.readTime}
               </span>
-              <h3 className="text-2xl font-bold font-sanskrit text-[#5A1717] mt-1">
+              <h3 className="text-2xl font-bold font-sanskrit text-[#5A1717] leading-snug">
                 {selectedArticle.titleNative}
               </h3>
               <div className="text-base font-heading italic text-stone-600">

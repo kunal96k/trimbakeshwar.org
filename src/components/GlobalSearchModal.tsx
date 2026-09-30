@@ -171,14 +171,19 @@ export function GlobalSearchModal() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header with Close */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#B88935]/20">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-[#5A1717] text-amber-200 flex items-center justify-center text-xs">
+        <div className="flex items-center justify-between pb-3.5 border-b border-[#B88935]/20">
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full bg-[#5A1717] text-amber-200 flex items-center justify-center text-xs shrink-0 shadow-xs">
               ॐ
             </span>
-            <span className="font-heading font-bold text-sm sm:text-base text-[#5A1717]">
-              Search Trimbakeshwar Kshetra
-            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-heading font-bold text-sm sm:text-base text-[#5A1717] leading-snug">
+                Search Trimbakeshwar Kshetra
+              </span>
+              <span className="text-[10px] text-stone-500 font-sans">
+                Vidhis, Gurujis, Darshan & Sacred Places
+              </span>
+            </div>
           </div>
           <button
             onClick={() => setIsSearchModalOpen(false)}

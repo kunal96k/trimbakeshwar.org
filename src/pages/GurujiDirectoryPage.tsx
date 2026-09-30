@@ -444,8 +444,8 @@ export function GurujiDirectoryPage() {
           >
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-amber-400/20 flex items-center justify-between bg-black/40">
-              <div className="space-y-0.5 pr-4">
-                <div className="inline-block px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold font-devanagari">
+              <div className="flex flex-col gap-1.5 pr-4">
+                <div className="inline-block px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-bold font-devanagari w-fit">
                   {selectedPreviewImage.badge}
                 </div>
                 <h3 className="text-base sm:text-xl font-bold font-heading text-amber-100 font-devanagari leading-snug">

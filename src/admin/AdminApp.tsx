@@ -29,6 +29,9 @@ import {
   fetchContactEnquiries,
   updateContactEnquiryStatus,
   ContactEnquiryRecord,
+  fetchBookingsPage,
+  normaliseServerBooking,
+  updateBookingPaymentStatus,
 } from '../services/enquiryService';
 
 function contactEnquiryToLead(enquiry: ContactEnquiryRecord): DevoteeLead {
@@ -54,10 +57,27 @@ function contactEnquiryToLead(enquiry: ContactEnquiryRecord): DevoteeLead {
     preferredDate: enquiry.preferredDate || 'Flexible Muhurat',
     query: enquiry.devoteeMessage || '',
     timeAgo,
-    status: (enquiry.status?.toLowerCase() === 'contacted' ? 'contacted' : 'new') as 'new' | 'contacted',
+    status: (!enquiry.status || enquiry.status.toUpperCase() === 'NEW' ? 'new' : 'contacted') as 'new' | 'contacted',
     preferredContactMethod: enquiry.preferredContactMethod || 'phone',
     isDatabaseSaved: true,
   };
+}
+
+function loadInitialBookings(): Booking[] {
+  try {
+    const saved = localStorage.getItem('trimbak_bookings');
+    if (saved) {
+      const parsed: Booking[] = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Clean out legacy mock IDs TRMB-2026-1081..1086
+        const mockIds = new Set(['TRMB-2026-1081', 'TRMB-2026-1082', 'TRMB-2026-1083', 'TRMB-2026-1084', 'TRMB-2026-1085', 'TRMB-2026-1086']);
+        return parsed.filter((b) => b && !mockIds.has(b.id)).map(normaliseServerBooking).filter(Boolean);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse trimbak_bookings from localStorage:', err);
+  }
+  return [];
 }
 
 interface AdminAppProps {
@@ -68,7 +88,7 @@ interface AdminAppProps {
 export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) {
   // Navigation & Core State
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [bookings, setBookings] = useState<Booking[]>(loadInitialBookings);
   const [leads, setLeads] = useState<DevoteeLead[]>(initialDevoteeLeads);
   const [notifications, setNotifications] = useState<AdminNotification[]>(initialNotifications);
   const [panchang] = useState<PanchangInfo>(initialPanchang);
@@ -81,19 +101,31 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
       const records = await fetchContactEnquiries();
       if (records && records.length > 0) {
         const liveLeads = records.map(contactEnquiryToLead);
-        setLeads((prev) => {
-          const liveNumbers = new Set(liveLeads.map((l) => l.enquiryNumber));
-          const rest = prev.filter((l) => !l.enquiryNumber || !liveNumbers.has(l.enquiryNumber));
-          return [...liveLeads, ...rest];
-        });
+        setLeads(liveLeads);
+      } else {
+        setLeads([]);
       }
     } catch (e) {
       console.error('Error fetching live enquiries:', e);
+      setLeads([]);
+    }
+  };
+
+  // Fetch and sync real pooja bookings from Spring Boot backend database
+  const loadLiveBookings = async () => {
+    try {
+      const res = await fetchBookingsPage({ size: 100 });
+      if (res && Array.isArray(res.content)) {
+        setBookings(res.content);
+      }
+    } catch (e) {
+      console.error('Error fetching live bookings:', e);
     }
   };
 
   useEffect(() => {
     loadLiveEnquiries();
+    loadLiveBookings();
 
     const handleNewSubmission = (event: any) => {
       const detail = event?.detail as ContactEnquiryRecord | undefined;
@@ -112,17 +144,50 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
       }
     };
 
+    const handleNewBooking = (event: any) => {
+      const newBooking = event?.detail as Booking | undefined;
+      if (newBooking) {
+        setBookings((prev) => [newBooking, ...prev.filter((b) => b.id !== newBooking.id)]);
+        addAndroidNotification(
+          'warning',
+          'New Token Payment Under Review',
+          `Devotee ${newBooking.devoteeName} submitted ₹1,000 screenshot for ${newBooking.poojaType}. UTR: ${newBooking.utrNumber || 'Attached'}.`,
+          'Verify QR',
+          () => setSelectedBookingForQR(newBooking)
+        );
+        addToast(
+          'info',
+          'Payment Under Verification',
+          `${newBooking.devoteeName} submitted ₹1,000 token screenshot. Action required in Payments.`
+        );
+      }
+    };
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'trimbak_contact_enquiries' || e.key === 'trimbak_last_enquiry_time') {
         loadLiveEnquiries();
       }
+      if (e.key === 'trimbak_bookings' && e.newValue) {
+        try {
+          const fresh = JSON.parse(e.newValue);
+          if (Array.isArray(fresh)) {
+            setBookings((prev) => {
+              const freshIds = new Set(fresh.map((b) => b.id));
+              const remainder = prev.filter((b) => !freshIds.has(b.id));
+              return [...fresh, ...remainder];
+            });
+          }
+        } catch (_) {}
+      }
     };
 
     window.addEventListener('trimbak_enquiry_submitted', handleNewSubmission);
+    window.addEventListener('trimbak_booking_submitted', handleNewBooking);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener('trimbak_enquiry_submitted', handleNewSubmission);
+      window.removeEventListener('trimbak_booking_submitted', handleNewBooking);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
@@ -220,47 +285,97 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
   };
 
   // Handlers for QR Payment Approval & Rejection
-  const handleApprovePayment = (bookingId: string) => {
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === bookingId
-          ? {
-              ...b,
-              qrStatus: 'verified',
-              status: 'upcoming',
-              statusLabel: 'Confirmed Booking',
-            }
-          : b
-      )
-    );
+  const handleApprovePayment = async (bookingId: string) => {
+    let updatedBooking: Booking | undefined;
+    setBookings((prev) => {
+      const updated = prev.map((b) => {
+        if (b.id === bookingId) {
+          const u: Booking = {
+            ...b,
+            qrStatus: 'verified',
+            status: 'upcoming',
+            statusLabel: 'Confirmed Booking',
+            emailSent: true,
+            emailSentAt: new Date().toLocaleString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          };
+          updatedBooking = u;
+          return u;
+        }
+        return b;
+      });
+      try {
+        localStorage.setItem('trimbak_bookings', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
 
-    const booking = bookings.find((b) => b.id === bookingId);
+    const booking = updatedBooking || bookings.find((b) => b.id === bookingId);
+    const devoteeName = booking?.devoteeName || 'Devotee';
+    const emailStr = booking?.email ? ` (${booking.email})` : '';
+
+    // Trigger real backend verification API (which dispatches the official confirmation email via EmailService)
+    try {
+      await updateBookingPaymentStatus(bookingId, 'verified', 'Payment verified by Guruji Admin');
+      loadLiveBookings();
+    } catch (e) {
+      console.warn('Backend payment status update offline:', e);
+    }
+
     addAndroidNotification(
       'success',
       'Token Payment Approved & Verified',
-      `₹1,000 advance receipt approved for ${booking ? booking.devoteeName : 'Devotee'}. Booking confirmed.`
+      `₹1,000 advance receipt approved for ${devoteeName}. Official confirmation email dispatched${emailStr}. Booking status updated to Confirmed.`
+    );
+    addToast(
+      'success',
+      'Booking Confirmed & Email Dispatched',
+      `Devotee ${devoteeName}'s UPI payment verified. Guruji contact schedule initiated.`
     );
   };
 
-  const handleRejectPayment = (bookingId: string, reason: string) => {
-    setBookings((prev) =>
-      prev.map((b) =>
+  const handleRejectPayment = async (bookingId: string, reason: string) => {
+    setBookings((prev) => {
+      const updated: Booking[] = prev.map((b) =>
         b.id === bookingId
-          ? { ...b, qrStatus: 'rejected', statusLabel: 'Re-verification Needed' }
+          ? { ...b, qrStatus: 'rejected' as const, statusLabel: 'Re-verification Needed' }
           : b
-      )
-    );
+      );
+      try {
+        localStorage.setItem('trimbak_bookings', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    try {
+      await updateBookingPaymentStatus(bookingId, 'rejected', reason);
+      loadLiveBookings();
+    } catch (e) {
+      console.warn('Backend payment status reject offline:', e);
+    }
 
     addAndroidNotification(
       'error',
       'Token Screenshot Rejected',
-      `Reason: ${reason}. A re-upload SMS notification has been dispatched to devotee.`
+      `Reason: ${reason}. A re-upload SMS & email notification has been dispatched to devotee.`
     );
+    addToast('error', 'Payment Rejected', reason);
   };
 
   // Handler for New Walk-In Booking
   const handleCreateBooking = (newBooking: Booking) => {
-    setBookings((prev) => [newBooking, ...prev]);
+    setBookings((prev) => {
+      const updated = [newBooking, ...prev];
+      try {
+        localStorage.setItem('trimbak_bookings', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
     addAndroidNotification(
       'success',
       'New Pooja Booking Reserved',

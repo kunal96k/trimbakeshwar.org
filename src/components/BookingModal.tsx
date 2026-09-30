@@ -28,9 +28,15 @@ import {
   CheckCircle2,
   BadgeCheck,
   Info,
+  Upload,
+  Image as ImageIcon,
+  Eye,
+  FileCheck,
+  Hourglass,
 } from 'lucide-react';
 import { TrishulIcon, DivyaSparkleIcon, OmSymbol } from './Motifs';
-import { submitPoojaBooking } from '../services/enquiryService';
+import { submitPoojaBooking, sendOtpApi, verifyOtpApi } from '../services/enquiryService';
+import { getTempleUpiConfig, UPI_CONFIG_UPDATED_EVENT, TempleUpiConfig } from '../services/templePaymentConfig';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -67,25 +73,35 @@ export function BookingModal({
     phone: '',
     email: '',
     city: '',
+    state: 'Maharashtra',
+    address: '',
     gotra: '',
     familyMembers: '2',
     language: 'Marathi',
+    poojaVenue: 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)',
+    customPoojaAddress: '',
     specialNotes: '',
   });
 
   // Validation Error
   const [stepError, setStepError] = useState<string | null>(null);
 
-  // OTP State
-  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '']);
-  const [otpTimer, setOtpTimer] = useState<number>(30);
+  // OTP State (6-Digit Cryptographic Temple Authentication)
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpTimer, setOtpTimer] = useState<number>(60);
   const [canResendOtp, setCanResendOtp] = useState<boolean>(false);
   const [isOtpVerified, setIsOtpVerified] = useState<boolean>(false);
+  const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState<boolean>(false);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState<string>('');
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<'qr' | 'upi' | 'card' | 'netbanking'>('qr');
+  const [paymentApp, setPaymentApp] = useState<string>('Google Pay');
   const [upiIdInput, setUpiIdInput] = useState<string>('');
   const [selectedBank, setSelectedBank] = useState<string>('sbi');
   const [cardData, setCardData] = useState({
@@ -96,7 +112,17 @@ export function BookingModal({
   });
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [paymentStepText, setPaymentStepText] = useState<string>('Processing...');
-  const [qrSecondsLeft, setQrSecondsLeft] = useState<number>(295);
+  // UPI Proof & Screenshot Verification State
+  const [utrInput, setUtrInput] = useState<string>('');
+  const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null);
+  const [screenshotFileName, setScreenshotFileName] = useState<string | null>(null);
+  const [screenshotFileSize, setScreenshotFileSize] = useState<string | null>(null);
+  const [paymentValidationError, setPaymentValidationError] = useState<string | null>(null);
+  const [showEnlargedScreenshot, setShowEnlargedScreenshot] = useState<boolean>(false);
+  const [copiedUpiId, setCopiedUpiId] = useState<boolean>(false);
+  const [bookingStatus, setBookingStatus] = useState<'pending_verification' | 'verified'>('pending_verification');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Confirmation Details
   const [bookingConfirmed, setBookingConfirmed] = useState<boolean>(false);
@@ -106,6 +132,24 @@ export function BookingModal({
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
 
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+
+  // Dynamic Temple UPI & QR Configuration
+  const [templeUpi, setTempleUpi] = useState<TempleUpiConfig>(getTempleUpiConfig());
+
+  useEffect(() => {
+    const handleUpiUpdate = (e: any) => {
+      setTempleUpi(e.detail || getTempleUpiConfig());
+    };
+    window.addEventListener(UPI_CONFIG_UPDATED_EVENT, handleUpiUpdate);
+    return () => window.removeEventListener(UPI_CONFIG_UPDATED_EVENT, handleUpiUpdate);
+  }, []);
+
+  // Reset scroll to top on every step transition
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [currentStep, bookingConfirmed]);
 
   // Initialize initial vidhi, guruji & default date
   useEffect(() => {
@@ -158,30 +202,10 @@ export function BookingModal({
     };
   }, [currentStep, otpTimer]);
 
-  // QR Session countdown timer
-  useEffect(() => {
-    let interval: any = null;
-    if (currentStep === 6 && paymentMethod === 'qr' && qrSecondsLeft > 0) {
-      interval = setInterval(() => {
-        setQrSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [currentStep, paymentMethod, qrSecondsLeft]);
-
   if (!isOpen) return null;
 
-  // Format seconds as MM:SS
-  const formatSeconds = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // Handle Step 4 -> Step 5 (Validation & Email OTP Trigger)
-  const handleProceedToOtp = () => {
+  // Handle Step 4 -> Step 5 (Validation & Real Email OTP Trigger)
+  const handleProceedToOtp = async () => {
     if (!yajmanData.name.trim() || yajmanData.name.trim().length < 3) {
       setStepError('Please enter Primary Yajman Full Name (at least 3 characters).');
       return;
@@ -193,28 +217,86 @@ export function BookingModal({
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!yajmanData.email.trim() || !emailRegex.test(yajmanData.email.trim())) {
-      setStepError('Please enter a valid Email Address to receive the OTP verification code.');
+      setStepError('Please enter a valid Email Address to receive the authentic OTP verification code.');
       return;
     }
 
     setStepError(null);
-    setOtpDigits(['', '', '', '']);
+    setIsSendingOtp(true);
+    setOtpDigits(['', '', '', '', '', '']);
     setOtpError(null);
     setIsOtpVerified(false);
-    setOtpTimer(30);
-    setCanResendOtp(false);
-    setCurrentStep(5);
+    setRemainingAttempts(null);
+
+    try {
+      const res = await sendOtpApi({
+        email: yajmanData.email.trim(),
+        devoteeName: yajmanData.name.trim(),
+        poojaType: selectedVidhi?.name || 'Vedic Vidhi Puja',
+        purpose: 'BOOKING_SUBMIT',
+      });
+
+      if (res.success) {
+        setMaskedEmail(res.maskedEmail || yajmanData.email.trim());
+        setOtpTimer(60);
+        setCanResendOtp(false);
+        setOtpMessage(res.message);
+        setCurrentStep(5);
+        setTimeout(() => {
+          otpInputRefs.current[0]?.focus();
+        }, 150);
+      } else {
+        setStepError(res.message || 'Failed to dispatch verification code to email.');
+      }
+    } catch (err) {
+      setStepError('Unable to connect to verification server. Please check your network connection.');
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
-  // Auto-fill Demo OTP
-  const handleAutoFillDemoOtp = () => {
-    const demo = ['1', '2', '3', '4'];
-    setOtpDigits(demo);
+  // Perform authentic OTP verification against backend
+  const performOtpVerification = async (code: string) => {
+    if (!code || code.length < 6) {
+      setOtpError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
     setOtpError(null);
-    setIsOtpVerified(true);
+
+    try {
+      const res = await verifyOtpApi({
+        email: yajmanData.email.trim(),
+        otp: code,
+      });
+
+      if (res.success) {
+        setIsOtpVerified(true);
+        setOtpError(null);
+        setRemainingAttempts(null);
+        setOtpMessage(res.message);
+
+        // Smooth transition to Payment Step 6 after visual confirmation
+        setTimeout(() => {
+          setCurrentStep(6);
+        }, 500);
+      } else {
+        setIsOtpVerified(false);
+        setOtpError(res.message || 'Incorrect OTP code entered. Please check your inbox.');
+        if (typeof res.remainingAttempts === 'number') {
+          setRemainingAttempts(res.remainingAttempts);
+        }
+      }
+    } catch (err) {
+      setIsOtpVerified(false);
+      setOtpError('Error communicating with verification server. Please try again.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
-  // Handle OTP digit changes
+  // Handle OTP digit changes across 6 boxes
   const handleOtpChange = (index: number, val: string) => {
     const char = val.slice(-1);
     if (char && !/^[0-9]$/.test(char)) return;
@@ -224,63 +306,81 @@ export function BookingModal({
     setOtpDigits(newDigits);
     setOtpError(null);
 
-    // Auto-advance
-    if (char && index < 3) {
+    // Auto-advance to next box
+    if (char && index < 5) {
       otpInputRefs.current[index + 1]?.focus();
     }
 
-    // If 4 digits filled, verify
-    if (char && index === 3) {
+    // If 6 digits filled, automatically verify
+    if (char && index === 5) {
       const full = newDigits.join('');
-      if (full.length === 4) {
-        setIsOtpVerified(true);
+      if (full.length === 6) {
+        performOtpVerification(full);
       }
     }
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        otpInputRefs.current[index - 1]?.focus();
+      }
     }
   };
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 4);
+    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
     if (!pasted) return;
-    const newDigits = ['', '', '', ''];
+    const newDigits = ['', '', '', '', '', ''];
     for (let i = 0; i < pasted.length; i++) {
       newDigits[i] = pasted[i];
     }
     setOtpDigits(newDigits);
-    if (pasted.length === 4) {
-      setIsOtpVerified(true);
+    if (pasted.length === 6) {
       setOtpError(null);
+      performOtpVerification(pasted);
+    } else {
+      const nextIndex = Math.min(pasted.length, 5);
+      otpInputRefs.current[nextIndex]?.focus();
     }
   };
 
   const handleVerifyOtpAndProceed = () => {
     const entered = otpDigits.join('');
-    if (entered.length < 4) {
-      setOtpError('Please enter the complete 4-digit code (Use Demo Email OTP: 1234).');
-      return;
-    }
-
-    setIsOtpVerified(true);
-    setOtpError(null);
-
-    // Advance to Payment Step 6
-    setTimeout(() => {
-      setCurrentStep(6);
-    }, 400);
+    performOtpVerification(entered);
   };
 
-  const handleResendOtp = () => {
-    setOtpDigits(['', '', '', '']);
+  const handleResendOtp = async () => {
+    setIsSendingOtp(true);
+    setOtpDigits(['', '', '', '', '', '']);
     setOtpError(null);
     setIsOtpVerified(false);
-    setOtpTimer(30);
-    setCanResendOtp(false);
+    setRemainingAttempts(null);
+
+    try {
+      const res = await sendOtpApi({
+        email: yajmanData.email.trim(),
+        devoteeName: yajmanData.name.trim(),
+        poojaType: selectedVidhi?.name || 'Vedic Vidhi Puja',
+        purpose: 'BOOKING_SUBMIT',
+      });
+
+      if (res.success) {
+        setOtpTimer(60);
+        setCanResendOtp(false);
+        setOtpMessage(res.message);
+        setTimeout(() => {
+          otpInputRefs.current[0]?.focus();
+        }, 100);
+      } else {
+        setOtpError(res.message || 'Unable to resend OTP. Please wait before retrying.');
+      }
+    } catch (err) {
+      setOtpError('Error connecting to verification server.');
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
   // Card Number formatting (adds space every 4 digits)
@@ -298,17 +398,109 @@ export function BookingModal({
     setCardData({ ...cardData, expiry: val });
   };
 
-  // Payment Execution & Backend Lead Registration
-  const handleExecutePayment = async () => {
-    setIsProcessingPayment(true);
-    setPaymentStepText('Connecting to Secure NPCI Gateway & Guruji Ledger...');
+  // Generate Authentic High-Res Demo Payment Receipt
+  const generateSampleReceipt = (app = paymentApp, utr = utrInput) => {
+    const finalUtr = utr || `4290${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const now = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="780" viewBox="0 0 600 780" fill="none">
+      <rect width="600" height="780" rx="32" fill="#F8F9FA"/>
+      <rect x="24" y="24" width="552" height="732" rx="24" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+      <circle cx="300" cy="115" r="38" fill="#0D9488"/>
+      <path d="M284 115 L296 127 L322 101" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="300" y="190" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="800" fill="#0F172A" text-anchor="middle">₹1,000.00</text>
+      <text x="300" y="218" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#0D9488" text-anchor="middle">Completed • Paid Successfully</text>
+      <line x1="50" y1="248" x2="550" y2="248" stroke="#E2E8F0" stroke-width="1.5" stroke-dasharray="6 6"/>
+      <text x="50" y="285" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#64748B">To Hereditary Vatandar Tirth Purohit</text>
+      <text x="50" y="312" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="17" font-weight="800" fill="#0F172A">Shri Trimbakeshwar Purohit Vatan</text>
+      <text x="50" y="336" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#D97706">${templeUpi.payeeName || 'Pt. Atharva Deshmukh / Pt. Pravin Shambhu Deshmukh (Desai)'}</text>
+      <text x="50" y="360" font-family="monospace" font-size="13" font-weight="600" fill="#475569">${templeUpi.upiId || 'atharvadeshmukh525-1@oksbi'}</text>
+      <line x1="50" y1="385" x2="550" y2="385" stroke="#F1F5F9" stroke-width="1.5"/>
+      <text x="50" y="415" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#64748B">UPI Transaction ID (UTR Number)</text>
+      <text x="50" y="440" font-family="monospace" font-size="15" font-weight="800" fill="#0F172A">UPI/${finalUtr}</text>
+      <text x="50" y="485" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#64748B">Payment Application & Mode</text>
+      <text x="50" y="510" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#0F172A">${app} • Real-time UPI Transfer</text>
+      <text x="50" y="555" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#64748B">Date & Timestamp</text>
+      <text x="50" y="580" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#0F172A">${now}</text>
+      <rect x="46" y="618" width="508" height="98" rx="16" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+      <text x="66" y="648" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" fill="#0F172A">Advance Token for Puja Booking</text>
+      <text x="66" y="670" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#475569">Vidhi: ${selectedVidhi?.name || 'Vedic Pooja'} (${selectedDate})</text>
+      <text x="66" y="692" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#0D9488">Awaiting Purohit Ledger Reconciliation</text>
+    </svg>`;
+    return { dataUrl: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, utr: finalUtr };
+  };
 
-    const ref = `TRMBK-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-    const txn = `TXN-${paymentMethod.toUpperCase()}-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+  const handleAttachDemoReceipt = () => {
+    const demo = generateSampleReceipt(paymentApp, utrInput);
+    setPaymentScreenshot(demo.dataUrl);
+    setScreenshotFileName('UPI_Receipt_Trimbak_1000.png');
+    setScreenshotFileSize('48.5 KB');
+    setUtrInput(demo.utr);
+    setPaymentValidationError(null);
+  };
+
+  const handleScreenshotFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setPaymentValidationError('Please upload a valid image file (JPEG, PNG, or WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPaymentValidationError('Screenshot file size must be less than 5 MB.');
+      return;
+    }
+    setPaymentValidationError(null);
+    setScreenshotFileName(file.name);
+    setScreenshotFileSize(`${(file.size / 1024).toFixed(1)} KB`);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setPaymentScreenshot(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Payment Execution & Backend Lead Registration (Sets Under Verification)
+  const handleExecutePayment = async () => {
+    if (paymentMethod === 'card' || paymentMethod === 'netbanking') {
+      setPaymentMethod('qr');
+      setPaymentValidationError('Cards & Net Banking are temporarily unavailable due to banking portal maintenance. Please complete your advance token payment via the authentic Temple UPI QR or any UPI App.');
+      return;
+    }
+
+    let finalUtr = utrInput.trim();
+    let finalScreenshot = paymentScreenshot;
+
+    // Validation for UPI Payment Proof
+    if (!finalUtr && !finalScreenshot) {
+      setPaymentValidationError('Please enter your 12-digit UPI UTR number and upload your payment screenshot.');
+      return;
+    }
+    if (!finalUtr) {
+      setPaymentValidationError('Please enter the UPI Transaction ID / UTR reference number.');
+      return;
+    }
+    if (!finalScreenshot) {
+      setPaymentValidationError('Please upload your payment screenshot for admin verification.');
+      return;
+    }
+
+    setPaymentValidationError(null);
+    setIsProcessingPayment(true);
+    setPaymentStepText('Submitting booking & UPI receipt to Guruji Ledger for verification...');
+
+    const year = new Date().getFullYear();
+    const uniqueSuffix = `${Date.now().toString().slice(-6)}${Math.floor(10 + Math.random() * 90)}`;
+    const ref = `TRMB-${year}-${uniqueSuffix}`;
     const now = new Date().toLocaleString('en-IN', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+
+    const chosenPoojaVenue = yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && yajmanData.customPoojaAddress
+      ? yajmanData.customPoojaAddress
+      : yajmanData.poojaVenue;
 
     try {
       const apiRes = await submitPoojaBooking({
@@ -317,14 +509,20 @@ export function BookingModal({
         email: yajmanData.email,
         gotra: yajmanData.gotra,
         city: yajmanData.city,
+        state: yajmanData.state,
+        devoteeAddress: yajmanData.address,
         poojaType: selectedVidhi?.name || 'Vedic Vidhi Puja',
         poojaCategory: selectedVidhi?.category,
         scheduledDate: selectedDate,
         timeSlot: selectedTimeSlot,
+        location: chosenPoojaVenue,
+        poojaAddress: chosenPoojaVenue,
         familyMembersCount: parseInt(yajmanData.familyMembers) || 2,
         advanceAmount: 1000,
         paymentMethod: paymentMethod,
-        utrNumber: txn,
+        paymentApp: paymentApp,
+        utrNumber: finalUtr,
+        paymentScreenshot: finalScreenshot,
         notes: yajmanData.specialNotes || `Appointed Guruji: ${selectedGuruji?.name || 'Pt. Pravin Shambhu Deshmukh (Desai)'}`,
         language: yajmanData.language,
       });
@@ -339,8 +537,9 @@ export function BookingModal({
       setBookingRefId(ref);
     }
 
-    setTransactionId(txn);
+    setTransactionId(finalUtr);
     setPaymentTime(now);
+    setBookingStatus('pending_verification');
     setIsProcessingPayment(false);
     setBookingConfirmed(true);
     setCurrentStep(7);
@@ -358,7 +557,274 @@ export function BookingModal({
   };
 
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>श्री त्र्यंबकेश्वर पूजा पावती - ${bookingRefId}</title>
+        <meta charset="utf-8" />
+        <style>
+          @media print {
+            @page { size: A4; margin: 15mm; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #211D19;
+            background: #FFFFFF;
+            margin: 0;
+            padding: 24px;
+          }
+          .receipt-container {
+            border: 3px double #B88935;
+            border-radius: 16px;
+            padding: 28px;
+            position: relative;
+            background: #FDFAF5;
+            overflow: hidden;
+            box-sizing: border-box;
+          }
+          .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            height: 320px;
+            opacity: 0.085;
+            pointer-events: none;
+            z-index: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .watermark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+          .content {
+            position: relative;
+            z-index: 1;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 2px solid #5A1717;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+          }
+          .header-top {
+            font-size: 13px;
+            color: #8C6218;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+          }
+          .header-title {
+            font-size: 24px;
+            color: #5A1717;
+            font-weight: 800;
+            margin: 6px 0 4px;
+          }
+          .header-sub {
+            font-size: 12px;
+            color: #4A3E31;
+          }
+          .badge-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding: 8px 12px;
+            background: #FEF3C7;
+            border: 1px solid #F59E0B;
+            border-radius: 8px;
+          }
+          .badge-ref {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: bold;
+            color: #5A1717;
+          }
+          .badge-status {
+            font-size: 12px;
+            font-weight: bold;
+            color: #92400E;
+          }
+          .grid {
+            display: table;
+            width: 100%;
+            margin-bottom: 16px;
+          }
+          .row {
+            display: table-row;
+          }
+          .cell-label {
+            display: table-cell;
+            width: 38%;
+            padding: 6px 8px;
+            font-size: 12px;
+            color: #555;
+            border-bottom: 1px dashed #E5D5BA;
+          }
+          .cell-val {
+            display: table-cell;
+            width: 62%;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #1A1A1A;
+            border-bottom: 1px dashed #E5D5BA;
+          }
+          .amount-val {
+            color: #065F46;
+            font-size: 14px;
+          }
+          .guidelines {
+            background: #FFFDF8;
+            border: 1px solid #E2D2B5;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-top: 16px;
+            font-size: 11px;
+            color: #4A3E31;
+            line-height: 1.6;
+          }
+          .guidelines-title {
+            font-weight: bold;
+            color: #5A1717;
+            margin-bottom: 4px;
+          }
+          .footer {
+            margin-top: 24px;
+            padding-top: 12px;
+            border-top: 1px solid #D5C2A5;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 10px;
+            color: #777;
+          }
+          .seal-box {
+            text-align: right;
+          }
+          .seal-line {
+            font-weight: bold;
+            color: #5A1717;
+            font-size: 11px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-container">
+          <div class="watermark">
+            <img src="/assets/purohit-profile-transparent.png" alt="Shri Trimbakeshwar Purohit Sangh Seal" />
+          </div>
+          <div class="content">
+            <div class="header">
+              <div class="header-top">॥ श्री क्षेत्र त्र्यम्बकेश्वर ज्योतिर्लिंग तीर्थ पुरोहित कार्यालय ॥</div>
+              <div class="header-title">पवित्र पूजा पावती एवं संकल्प पत्र</div>
+              <div class="header-sub">Pt. Pravin Shambhu Deshmukh (Desai) / Pt. Atharva Deshmukh · वंशपरंपरागत २५ पिढ्यांचे वतनदार तीर्थ पुरोहित (सन १६७४)</div>
+              <div class="header-sub">कुशावर्त तीर्थ कुण्ड, श्री क्षेत्र त्र्यम्बकेश्वर, जि. नाशिक · फोन: +91 96899 73967</div>
+            </div>
+
+            <div class="badge-row">
+              <div class="badge-ref">Booking Ref: ${bookingRefId}</div>
+              <div class="badge-status">Status: Booking Under Verification (पडताळणी प्रलंबित)</div>
+            </div>
+
+            <div class="grid">
+              <div class="row">
+                <div class="cell-label">Primary Devotee (Yajman):</div>
+                <div class="cell-val">${yajmanData.name} (${yajmanData.gotra ? yajmanData.gotra + ' Gotra' : 'Kashyap Gotra'})</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Contact Mobile / WhatsApp:</div>
+                <div class="cell-val">+91 ${yajmanData.phone}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Devotee Email:</div>
+                <div class="cell-val">${yajmanData.email}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">City & State:</div>
+                <div class="cell-val">${yajmanData.city || 'Trimbakeshwar'}, ${yajmanData.state || 'Maharashtra'}</div>
+              </div>
+              ${yajmanData.address ? `
+              <div class="row">
+                <div class="cell-label">Client Residential Address:</div>
+                <div class="cell-val">${yajmanData.address}</div>
+              </div>
+              ` : ''}
+              <div class="row">
+                <div class="cell-label">Persons Present (Family):</div>
+                <div class="cell-val">${yajmanData.familyMembers || 2} Persons Attending</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Sanctified Vidhi / Pooja:</div>
+                <div class="cell-val">${selectedVidhi?.name || 'Vedic Vidhi Puja'}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Appointed Purohit:</div>
+                <div class="cell-val">${selectedGuruji?.name || 'Pt. Pravin Shambhu Deshmukh (Desai)'}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Scheduled Date:</div>
+                <div class="cell-val">${selectedDate}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Muhurat Time Slot:</div>
+                <div class="cell-val">${selectedTimeSlot}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Advance Token Deposit:</div>
+                <div class="cell-val amount-val">₹1,000.00 (Received via ${paymentApp})</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">UPI Transaction ID (UTR):</div>
+                <div class="cell-val" style="font-family: monospace;">${transactionId}</div>
+              </div>
+              <div class="row">
+                <div class="cell-label">Pooja Performing Venue / Address:</div>
+                <div class="cell-val">${yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && yajmanData.customPoojaAddress ? yajmanData.customPoojaAddress : yajmanData.poojaVenue}</div>
+              </div>
+              ${yajmanData.specialNotes ? `
+              <div class="row">
+                <div class="cell-label">Devotee Sankalp Notes:</div>
+                <div class="cell-val">${yajmanData.specialNotes}</div>
+              </div>
+              ` : ''}
+            </div>
+
+            <div class="guidelines">
+              <div class="guidelines-title">पवित्र संकल्प नियम (Vedic Ritual Guidelines):</div>
+              <div>• पुरुषों हेतु सोवळे / पांढरे धोतर-कुर्ता तथा महिला हेतु साडी परिधान अनिवार्य आहे.</div>
+              <div>• पूजेच्या दिवशी सकाळी कुशावर्त तीर्थ स्नान करून उपवास ठेवावा.</div>
+              <div>• Guruji will contact you on WhatsApp (+91 ${yajmanData.phone}) 24 hours prior to ritual with auspicious preparations.</div>
+            </div>
+
+            <div class="footer">
+              <div>
+                <div>Generated on: ${paymentTime || new Date().toLocaleString('en-IN')}</div>
+                <div>Official Devotee Ledger Record · Har Har Mahadev!</div>
+              </div>
+              <div class="seal-box">
+                <div class="seal-line">श्री क्षेत्र त्र्यम्बकेश्वर तीर्थ पुरोहित कार्यालय</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }<\/script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const handleWhatsAppShare = () => {
@@ -386,34 +852,34 @@ export function BookingModal({
     { num: 3, label: 'Guruji' },
     { num: 4, label: 'Yajman' },
     { num: 5, label: 'OTP' },
-    { num: 6, label: 'Pay ₹1,000' },
+    { num: 6, label: 'Pay & Verify' },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        className="bg-[#FBF6EA] text-[#211D19] rounded-3xl max-w-3xl w-full max-h-[94vh] flex flex-col border border-[#B88935]/40 shadow-2xl overflow-hidden relative"
+        className="bg-[#FBF6EA] text-[#211D19] rounded-3xl w-full max-w-[94vw] sm:w-[780px] md:w-[840px] h-[92vh] max-h-[850px] min-h-[580px] flex flex-col border border-[#B88935]/40 shadow-2xl overflow-hidden relative"
         role="dialog"
         aria-modal="true"
       >
         {/* Modal Top Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#5A1717] via-[#4A1313] to-[#2E0B0B] text-white flex items-center justify-between border-b border-amber-400/20 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
+        <div className="px-5 py-3.5 sm:px-6 sm:py-4 bg-gradient-to-r from-[#5A1717] via-[#4A1313] to-[#2E0B0B] text-white flex items-center justify-between border-b border-amber-400/20 shadow-md shrink-0">
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0 shadow-inner">
               <TrishulIcon className="w-5 h-5 text-amber-300 shrink-0" />
             </div>
-            <div>
-              <div className="flex items-center gap-2 text-amber-300 text-[11px] font-semibold tracking-wider uppercase font-sans">
+            <div className="flex flex-col gap-0.5 sm:gap-1 justify-center">
+              <div className="flex items-center gap-2 text-amber-300 text-[11px] sm:text-xs font-semibold tracking-wider uppercase font-sans">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                 <span>Shri Trimbakeshwar Jyotirlinga Seva</span>
               </div>
-              <h2 className="text-base sm:text-xl font-bold font-sanskrit text-amber-50 leading-tight">
+              <h2 className="text-base sm:text-lg md:text-xl font-bold font-sanskrit text-amber-50 leading-snug tracking-wide">
                 {bookingConfirmed
-                  ? 'पूजा संकल्प व टोकन पुष्टी • Booking Confirmed'
+                  ? 'पूजा नोंदणी प्राप्त • पडताळणी प्रलंबित (Under Verification)'
                   : currentStep === 5
                   ? 'ईमेल ओटीपी पडताळणी • Verify Email OTP'
                   : currentStep === 6
-                  ? 'ॲडव्हान्स टोकन पेमेंट • Pay ₹1,000 Advance Token'
+                  ? 'ॲडव्हान्स टोकन पेमेंट व पावती • UPI Payment & Receipt'
                   : 'पूजा नोंदणी • Sacred Vidhi Booking'}
               </h2>
             </div>
@@ -421,7 +887,7 @@ export function BookingModal({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-stone-200 hover:text-white transition-colors cursor-pointer shrink-0 ml-2"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -430,7 +896,7 @@ export function BookingModal({
 
         {/* Step Indicator Header */}
         {!bookingConfirmed && (
-          <div className="bg-[#EDE3D1]/80 px-4 sm:px-6 py-2.5 border-b border-[#B88935]/25">
+          <div className="bg-[#EDE3D1]/90 px-4 sm:px-6 py-2.5 border-b border-[#B88935]/25 shrink-0">
             {/* Desktop Stepper */}
             <div className="hidden sm:flex items-center justify-between text-xs font-medium">
               {stepLabels.map((item, idx) => (
@@ -474,7 +940,7 @@ export function BookingModal({
                   {currentStep === 3 && '3/6: Select Guruji'}
                   {currentStep === 4 && '4/6: Yajman Information'}
                   {currentStep === 5 && '5/6: Verify Email OTP'}
-                  {currentStep === 6 && '6/6: Pay ₹1,000 Advance Token'}
+                  {currentStep === 6 && '6/6: Pay ₹1,000 & Attach Receipt'}
                 </span>
               </span>
               <div className="w-24 bg-stone-200 h-1.5 rounded-full overflow-hidden">
@@ -488,7 +954,10 @@ export function BookingModal({
         )}
 
         {/* Modal Scrollable Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 font-sans">
+        <div
+          ref={scrollContainerRef}
+          className="p-4 sm:p-6 overflow-y-auto flex-1 font-sans scroll-smooth"
+        >
           {/* STEP 1: Select Vidhi */}
           {currentStep === 1 && (
             <div>
@@ -779,18 +1248,23 @@ export function BookingModal({
 
           {/* STEP 4: Yajman Details */}
           {currentStep === 4 && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-base sm:text-lg font-bold font-heading text-[#5A1717]">
-                  Yajman & Sankalp Details
-                </h3>
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-1 border-b border-[#B88935]/20">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold font-heading text-[#5A1717] leading-tight">
+                    Yajman & Sankalp Details
+                  </h3>
+                  <p className="text-xs text-stone-600 mt-0.5">
+                    Please enter devotee information for the sacred Sankalp recitation before Lord Trimbakeshwar.
+                  </p>
+                </div>
+                <span className="text-[11px] text-[#C56A18] font-semibold bg-amber-100/60 px-2.5 py-0.5 rounded-full border border-amber-300/40 shrink-0">
+                  Step 4 of 6
+                </span>
               </div>
-              <p className="text-xs text-stone-600 mb-3.5">
-                Please enter devotee information for the sacred Sankalp recitation before Lord Trimbakeshwar.
-              </p>
 
               {/* Appointed Guruji Summary Strip */}
-              <div className="mb-3.5 p-2.5 rounded-xl bg-[#EDE3D1]/70 border border-[#B88935]/30 flex items-center justify-between text-xs">
+              <div className="p-2.5 rounded-xl bg-[#EDE3D1]/70 border border-[#B88935]/30 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2.5">
                   <img
                     src="/assets/guruji.png"
@@ -888,6 +1362,32 @@ export function BookingModal({
 
                 <div>
                   <label className="block font-bold text-stone-700 uppercase mb-1">
+                    State of Residence
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Maharashtra, Gujarat, MP"
+                    value={yajmanData.state}
+                    onChange={(e) => setYajmanData({ ...yajmanData, state: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-stone-700 uppercase mb-1">
+                    Devotee Residential Address (निवासस्थान संपूर्ण पत्ता)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter full flat / house / street address, area & pincode"
+                    value={yajmanData.address}
+                    onChange={(e) => setYajmanData({ ...yajmanData, address: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#B88935]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-stone-700 uppercase mb-1">
                     Family Gotra (गोत्र)
                   </label>
                   <input
@@ -901,7 +1401,7 @@ export function BookingModal({
 
                 <div>
                   <label className="block font-bold text-stone-700 uppercase mb-1">
-                    Attending Family Members
+                    Attending Family Members (उपस्थित व्यक्ती)
                   </label>
                   <select
                     value={yajmanData.familyMembers}
@@ -914,6 +1414,46 @@ export function BookingModal({
                     <option value="5+">5+ Family Members</option>
                   </select>
                 </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-stone-700 uppercase mb-1">
+                    Pooja Performing Venue / Address (पूजा विधी ठिकाण)
+                  </label>
+                  <select
+                    value={yajmanData.poojaVenue}
+                    onChange={(e) => setYajmanData({ ...yajmanData, poojaVenue: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none"
+                  >
+                    <option value="Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)">
+                      Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)
+                    </option>
+                    <option value="Guruji Shastric Ashram & Karyalaya, Trimbakeshwar">
+                      Guruji Shastric Ashram & Karyalaya, Trimbakeshwar
+                    </option>
+                    <option value="Ahilya Sangam & Trimbakeshwar Temple Complex">
+                      Ahilya Sangam & Trimbakeshwar Temple Complex
+                    </option>
+                    <option value="Other Custom Location / Griha Pravesh Site">
+                      Other Custom Location / Griha Pravesh Site (Enter Specific Address Below)
+                    </option>
+                  </select>
+                </div>
+
+                {yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && (
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-[#5A1717] uppercase mb-1">
+                      Custom Pooja Venue Address *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter exact address where Vastu / Puja ritual will take place"
+                      value={yajmanData.customPoojaAddress}
+                      onChange={(e) => setYajmanData({ ...yajmanData, customPoojaAddress: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border-2 border-amber-500/50 bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-[#B88935]"
+                    />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2">
                   <label className="block font-bold text-stone-700 uppercase mb-1">
@@ -956,39 +1496,35 @@ export function BookingModal({
             </div>
           )}
 
-          {/* STEP 5: Email OTP Verification */}
+          {/* STEP 5: Email OTP Verification (Authentic 6-Digit Code) */}
           {currentStep === 5 && (
             <div className="py-2">
-              <div className="text-center max-w-md mx-auto">
-                <div className="w-14 h-14 rounded-full bg-amber-100 border-2 border-[#B88935]/40 text-[#5A1717] flex items-center justify-center mx-auto mb-3 shadow-sm">
+              <div className="text-center max-w-lg mx-auto">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 border-2 border-[#B88935]/50 text-[#5A1717] flex items-center justify-center mx-auto mb-3 shadow-md">
                   <Mail className="w-7 h-7 text-[#5A1717]" />
                 </div>
 
-                <div className="text-[11px] font-bold uppercase tracking-widest text-[#C56A18]">
-                  सुरक्षित ईमेल पडताळणी
+                <div className="flex flex-col gap-1.5 mb-2.5">
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-[#C56A18] flex items-center justify-center gap-1.5">
+                    <Lock className="w-3 h-3 text-[#B88935]" />
+                    <span>सुरक्षित ईमेल पडताळणी · SECURE EMAIL AUTHENTICATION</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold font-sanskrit text-[#5A1717] leading-snug">
+                    Verify Email Address (OTP)
+                  </h3>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold font-sanskrit text-[#5A1717] mt-0.5 mb-1.5">
-                  Verify Email Address (OTP)
-                </h3>
-                <p className="text-xs text-stone-600 mb-4">
-                  We have sent a 4-digit verification code to your email:{' '}
-                  <span className="font-bold text-[#5A1717] underline">{yajmanData.email || 'devotee@example.com'}</span>.
+                <p className="text-xs text-stone-600 mb-2 leading-relaxed">
+                  We have dispatched an authentic <strong>6-digit verification code</strong> from Guruji's Purohit Office to:
                 </p>
-
-                {/* Demo Helper Button */}
-                <div className="mb-4 inline-flex items-center gap-2 bg-amber-50 border border-amber-300/80 rounded-full px-3 py-1 text-xs">
-                  <span className="text-amber-800 font-medium">Demo Testing Email OTP: <strong>1234</strong></span>
-                  <button
-                    type="button"
-                    onClick={handleAutoFillDemoOtp}
-                    className="bg-[#5A1717] hover:bg-[#701D1D] text-white text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors cursor-pointer"
-                  >
-                    Auto-fill 1234
-                  </button>
+                <div className="inline-flex items-center gap-2 bg-[#EDE3D1]/70 border border-[#B88935]/40 rounded-full px-4 py-1 mb-4">
+                  <Mail className="w-3.5 h-3.5 text-[#5A1717]" />
+                  <span className="font-bold text-xs text-[#5A1717] font-mono tracking-wide">
+                    {maskedEmail || yajmanData.email || 'devotee@example.com'}
+                  </span>
                 </div>
 
-                {/* 4 Digit Boxes */}
-                <div className="flex justify-center items-center gap-3 mb-4" onPaste={handleOtpPaste}>
+                {/* 6 Digit Boxes */}
+                <div className="flex justify-center items-center gap-2 sm:gap-3 mb-4" onPaste={handleOtpPaste}>
                   {otpDigits.map((digit, idx) => (
                     <input
                       key={idx}
@@ -1001,43 +1537,55 @@ export function BookingModal({
                       value={digit}
                       onChange={(e) => handleOtpChange(idx, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      className={`w-12 h-14 text-center text-2xl font-bold rounded-2xl border-2 transition-all ${
-                        digit
-                          ? 'border-[#5A1717] bg-white text-[#5A1717] ring-2 ring-[#5A1717]/10'
-                          : 'border-stone-300 bg-white text-stone-800 focus:border-[#B88935] focus:ring-2 focus:ring-[#B88935]/20'
+                      disabled={isVerifyingOtp}
+                      className={`w-10 h-13 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold rounded-2xl border-2 transition-all font-mono ${
+                        otpError
+                          ? 'border-red-400 bg-red-50/40 text-red-900 focus:border-red-500 focus:ring-2 focus:ring-red-200'
+                          : digit
+                          ? 'border-[#5A1717] bg-amber-50/50 text-[#5A1717] ring-2 ring-[#5A1717]/15'
+                          : 'border-stone-300 bg-white text-stone-800 focus:border-[#B88935] focus:ring-2 focus:ring-[#B88935]/25'
                       }`}
                     />
                   ))}
                 </div>
 
-                {otpError && (
-                  <div className="text-xs text-red-600 font-medium mb-3 flex items-center justify-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
+                {/* Status Banners */}
+                {isVerifyingOtp && (
+                  <div className="text-xs text-amber-900 font-semibold mb-3 flex items-center justify-center gap-1.5 bg-amber-50 py-2 px-4 rounded-full border border-amber-300 mx-auto w-fit animate-pulse">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
+                    <span>Verifying code with Temple Server...</span>
+                  </div>
+                )}
+
+                {otpError && !isVerifyingOtp && (
+                  <div className="text-xs text-red-700 font-medium mb-3 flex items-center justify-center gap-1.5 bg-red-50 py-2 px-4 rounded-xl border border-red-200 mx-auto w-fit max-w-sm">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                     <span>{otpError}</span>
                   </div>
                 )}
 
                 {isOtpVerified && (
-                  <div className="text-xs text-emerald-700 font-bold mb-3 flex items-center justify-center gap-1.5 bg-emerald-50 py-1.5 px-3 rounded-full border border-emerald-200 mx-auto w-fit">
+                  <div className="text-xs text-emerald-800 font-bold mb-3 flex items-center justify-center gap-1.5 bg-emerald-50 py-2 px-4 rounded-full border border-emerald-300 mx-auto w-fit shadow-sm">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Email {yajmanData.email} Verified!</span>
+                    <span>Email Verified! Proceeding to Dakshina Token Payment...</span>
                   </div>
                 )}
 
                 {/* Resend & Change Email Actions */}
-                <div className="flex items-center justify-center gap-4 text-xs text-stone-600 mt-2 mb-2">
+                <div className="flex items-center justify-center gap-4 text-xs text-stone-600 mt-3 mb-2">
                   {canResendOtp ? (
                     <button
                       type="button"
                       onClick={handleResendOtp}
-                      className="text-[#5A1717] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      disabled={isSendingOtp}
+                      className="text-[#5A1717] font-bold hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Resend OTP to Email</span>
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSendingOtp ? 'animate-spin' : ''}`} />
+                      <span>{isSendingOtp ? 'Sending New OTP...' : 'Resend OTP to Email'}</span>
                     </button>
                   ) : (
                     <span className="text-stone-500">
-                      Resend code in <strong className="font-mono text-stone-800">{otpTimer}s</strong>
+                      Resend code in <strong className="font-mono text-[#5A1717]">{otpTimer}s</strong>
                     </span>
                   )}
 
@@ -1050,6 +1598,11 @@ export function BookingModal({
                   >
                     Edit Email Address
                   </button>
+                </div>
+
+                <div className="mt-3 text-[11px] text-stone-500 bg-stone-50 border border-stone-200/80 rounded-xl p-2.5 flex items-center justify-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                  <span>Please check your inbox or spam/junk folder. Official email from <strong>trimbak.tirthapurohit@gmail.com</strong>.</span>
                 </div>
               </div>
             </div>
@@ -1158,27 +1711,37 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('card')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer relative ${
                       paymentMethod === 'card'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
-                        : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
+                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
                     }`}
                   >
-                    <CreditCard className="w-4 h-4" />
-                    <span>Cards</span>
+                    <div className="flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Cards</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                      Tmp. Unavailable
+                    </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('netbanking')}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer relative ${
                       paymentMethod === 'netbanking'
                         ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-sm'
-                        : 'bg-white text-stone-700 border-stone-200 hover:bg-amber-50/50'
+                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
                     }`}
                   >
-                    <Building2 className="w-4 h-4" />
-                    <span>Net Banking</span>
+                    <div className="flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Net Banking</span>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                      Tmp. Unavailable
+                    </span>
                   </button>
                 </div>
 
@@ -1186,104 +1749,59 @@ export function BookingModal({
                 {paymentMethod === 'qr' && (
                   <div className="p-4 bg-white rounded-2xl border border-stone-200 text-center">
                     <div className="flex items-center justify-between pb-2 border-b border-stone-100 mb-3 text-xs">
-                      <span className="text-stone-500 font-medium">Scan with any UPI App</span>
-                      <span className="font-mono text-[#5A1717] font-bold flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Expires in {formatSeconds(qrSecondsLeft)}</span>
+                      <span className="text-stone-700 font-semibold flex items-center gap-1.5">
+                        <QrCode className="w-3.5 h-3.5 text-[#5A1717]" />
+                        <span>Scan with any UPI App (GPay, PhonePe, Paytm, BHIM)</span>
+                      </span>
+                      <span className="text-emerald-700 font-bold flex items-center gap-1 text-[11px] bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200" title="Official Authenticated Temple UPI QR">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Verified Official QR</span>
                       </span>
                     </div>
 
-                    {/* Styled High-res SVG QR Code */}
-                    <div className="w-44 h-44 mx-auto p-2 bg-white rounded-2xl border-2 border-[#B88935]/40 shadow-inner flex flex-col items-center justify-center relative">
-                      <svg viewBox="0 0 160 160" className="w-full h-full">
-                        {/* Outer QR Mock Matrix */}
-                        <rect width="160" height="160" fill="#FFFFFF" />
-                        {/* Top-Left Finder */}
-                        <rect x="10" y="10" width="36" height="36" fill="#211D19" rx="4" />
-                        <rect x="16" y="16" width="24" height="24" fill="#FFFFFF" rx="2" />
-                        <rect x="22" y="22" width="12" height="12" fill="#5A1717" rx="1" />
-
-                        {/* Top-Right Finder */}
-                        <rect x="114" y="10" width="36" height="36" fill="#211D19" rx="4" />
-                        <rect x="120" y="16" width="24" height="24" fill="#FFFFFF" rx="2" />
-                        <rect x="126" y="22" width="12" height="12" fill="#5A1717" rx="1" />
-
-                        {/* Bottom-Left Finder */}
-                        <rect x="10" y="114" width="36" height="36" fill="#211D19" rx="4" />
-                        <rect x="16" y="120" width="24" height="24" fill="#FFFFFF" rx="2" />
-                        <rect x="22" y="126" width="12" height="12" fill="#5A1717" rx="1" />
-
-                        {/* QR Data Patterns */}
-                        <g fill="#211D19">
-                          <rect x="54" y="14" width="8" height="8" />
-                          <rect x="70" y="14" width="8" height="8" />
-                          <rect x="86" y="14" width="8" height="8" />
-                          <rect x="98" y="22" width="8" height="8" />
-                          <rect x="54" y="30" width="8" height="8" />
-                          <rect x="78" y="30" width="8" height="8" />
-
-                          <rect x="14" y="54" width="8" height="8" />
-                          <rect x="30" y="54" width="8" height="8" />
-                          <rect x="42" y="54" width="8" height="8" />
-                          <rect x="54" y="54" width="8" height="8" />
-                          <rect x="98" y="54" width="8" height="8" />
-                          <rect x="114" y="54" width="8" height="8" />
-                          <rect x="138" y="54" width="8" height="8" />
-
-                          <rect x="14" y="70" width="8" height="8" />
-                          <rect x="38" y="70" width="8" height="8" />
-                          <rect x="54" y="70" width="8" height="8" />
-                          <rect x="98" y="70" width="8" height="8" />
-                          <rect x="122" y="70" width="8" height="8" />
-
-                          <rect x="14" y="86" width="8" height="8" />
-                          <rect x="30" y="86" width="8" height="8" />
-                          <rect x="54" y="86" width="8" height="8" />
-                          <rect x="70" y="86" width="8" height="8" />
-                          <rect x="98" y="86" width="8" height="8" />
-                          <rect x="114" y="86" width="8" height="8" />
-                          <rect x="138" y="86" width="8" height="8" />
-
-                          <rect x="54" y="102" width="8" height="8" />
-                          <rect x="78" y="102" width="8" height="8" />
-                          <rect x="98" y="102" width="8" height="8" />
-                          <rect x="122" y="102" width="8" height="8" />
-
-                          <rect x="54" y="118" width="8" height="8" />
-                          <rect x="70" y="118" width="8" height="8" />
-                          <rect x="98" y="118" width="8" height="8" />
-                          <rect x="138" y="118" width="8" height="8" />
-
-                          <rect x="54" y="138" width="8" height="8" />
-                          <rect x="86" y="138" width="8" height="8" />
-                          <rect x="114" y="138" width="8" height="8" />
-                        </g>
-
-                        {/* Central Shiva Emblem */}
-                        <rect x="64" y="64" width="32" height="32" fill="#5A1717" rx="8" />
-                        <circle cx="80" cy="80" r="12" fill="#B88935" />
-                        <path
-                          d="M80 72v16M74 76h12M76 84h8"
-                          stroke="#FFFFFF"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
+                    {/* Authentic Hereditary Purohit UPI QR Code Image */}
+                    <div className="w-52 mx-auto p-2 bg-white rounded-2xl border-2 border-[#B88935]/40 shadow-inner flex flex-col items-center justify-center relative group">
+                      <img
+                        src={templeUpi.qrImageUrl || "/assets/UPI.jpeg"}
+                        alt="Shri Trimbakeshwar Purohit UPI QR Code"
+                        className="w-full h-auto object-contain rounded-xl border border-stone-200 max-h-52"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/assets/UPI.jpeg';
+                        }}
+                      />
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-3 space-y-1">
                       <div className="text-sm font-bold text-[#5A1717]">₹1,000.00 Advance Booking Token</div>
-                      <div className="text-[11px] text-stone-500 font-mono mt-0.5">
-                        UPI ID: trimbak.purohitseva@sbi
+                      <div className="text-xs text-stone-700 font-medium">
+                        Payee: <span className="font-semibold text-[#5A1717]">{templeUpi.payeeName || 'Pt. Atharva Deshmukh / Pt. Pravin Shambhu Deshmukh'}</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 mt-1">
+                        <span className="text-[11px] text-stone-700 font-mono bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300 font-bold">
+                          UPI ID: {templeUpi.upiId || 'atharvadeshmukh525-1@oksbi'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(templeUpi.upiId || 'atharvadeshmukh525-1@oksbi');
+                            setCopiedUpiId(true);
+                            setTimeout(() => setCopiedUpiId(false), 2000);
+                          }}
+                          className="text-[11px] text-[#5A1717] hover:underline font-semibold flex items-center gap-0.5 px-2 py-1 rounded bg-amber-100/60 border border-amber-300/60 cursor-pointer"
+                        >
+                          {copiedUpiId ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedUpiId ? 'Copied' : 'Copy'}</span>
+                        </button>
                       </div>
                     </div>
 
                     {/* Supported Apps Badges */}
-                    <div className="flex items-center justify-center gap-2 mt-3 text-[10px] font-semibold text-stone-600">
+                    <div className="flex items-center justify-center gap-2 mt-3 text-[10px] font-semibold text-stone-600 flex-wrap">
                       <span className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200">Google Pay</span>
                       <span className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200">PhonePe</span>
                       <span className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200">Paytm</span>
                       <span className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200">BHIM UPI</span>
+                      <span className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200">Cred</span>
                     </div>
                   </div>
                 )}
@@ -1341,158 +1859,289 @@ export function BookingModal({
                   </div>
                 )}
 
-                {/* TAB 3: Credit / Debit Card */}
+                {/* TAB 3: Credit / Debit Card - TEMPORARILY UNAVAILABLE */}
                 {paymentMethod === 'card' && (
-                  <div className="p-4 bg-white rounded-2xl border border-stone-200 space-y-3">
+                  <div className="p-5 bg-amber-50/80 rounded-2xl border border-amber-300 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center text-[#5A1717]">
+                      <CreditCard className="w-6 h-6" />
+                    </div>
                     <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                        Card Number (16 Digits)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="4532 •••• •••• 8901"
-                          value={cardData.number}
-                          onChange={handleCardNumberChange}
-                          className="w-full p-2.5 pr-20 rounded-xl border border-stone-300 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#B88935]"
-                        />
-                        <div className="absolute right-2.5 top-2.5 flex items-center gap-1 text-[10px] font-bold text-stone-400">
-                          <span>RuPay</span>
-                          <span>Visa</span>
-                          <span>MC</span>
-                        </div>
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-bold uppercase tracking-wider mb-1.5 border border-amber-300">
+                        Notice • Tmp. Unavailable
                       </div>
+                      <h4 className="text-sm font-bold text-[#5A1717]">
+                        Card Payments Temporarily Unavailable
+                      </h4>
+                      <p className="text-xs text-stone-600 mt-1 max-w-md mx-auto leading-relaxed">
+                        Due to scheduled banking payment gateway maintenance for temple trusts, Debit and Credit Card processing is temporarily offline. Please use our instant zero-fee authentic Temple UPI QR Code or any UPI App to reserve your pooja slot.
+                      </p>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                        Cardholder Full Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Name as printed on card"
-                        value={cardData.name || yajmanData.name}
-                        onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
-                        className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#B88935]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                          Expiry (MM/YY)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          value={cardData.expiry}
-                          onChange={handleCardExpiryChange}
-                          className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#B88935]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                          CVV / CVC (3 Digits)
-                        </label>
-                        <input
-                          type="password"
-                          placeholder="•••"
-                          maxLength={3}
-                          value={cardData.cvv}
-                          onChange={(e) => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '') })}
-                          className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#B88935]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-1 flex items-center gap-1 text-[11px] text-stone-500">
-                      <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>256-bit encrypted bank connection compliant with RBI tokenization rules.</span>
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('qr')}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#5A1717] to-[#7A1D1D] hover:from-[#7A1D1D] hover:to-[#962626] text-white text-xs font-bold shadow transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-4 h-4 text-amber-300" />
+                        <span>Pay via Temple UPI QR (Recommended)</span>
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* TAB 4: Net Banking */}
+                {/* TAB 4: Net Banking - TEMPORARILY UNAVAILABLE */}
                 {paymentMethod === 'netbanking' && (
-                  <div className="p-4 bg-white rounded-2xl border border-stone-200 space-y-3">
-                    <label className="block text-xs font-bold text-stone-700 uppercase mb-1">
-                      Select Your Bank
+                  <div className="p-5 bg-amber-50/80 rounded-2xl border border-amber-300 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center text-[#5A1717]">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-900 text-[10px] font-bold uppercase tracking-wider mb-1.5 border border-amber-300">
+                        Notice • Tmp. Unavailable
+                      </div>
+                      <h4 className="text-sm font-bold text-[#5A1717]">
+                        Net Banking Temporarily Unavailable
+                      </h4>
+                      <p className="text-xs text-stone-600 mt-1 max-w-md mx-auto leading-relaxed">
+                        Direct Internet Banking (NEFT/RTGS/IMPS portal) is undergoing scheduled bank server integration. Please make your ₹1,000 token payment using the authentic Temple UPI QR Code or any UPI App.
+                      </p>
+                    </div>
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('qr')}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#5A1717] to-[#7A1D1D] hover:from-[#7A1D1D] hover:to-[#962626] text-white text-xs font-bold shadow transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-4 h-4 text-amber-300" />
+                        <span>Pay via Temple UPI QR (Recommended)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* ─── Mandatory Payment Proof & Verification Upload Section ─── */}
+                <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#EDE3D1]/80 to-amber-50/90 border-2 border-[#B88935]/40 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#B88935]/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#5A1717] text-amber-300 flex items-center justify-center font-bold text-xs">
+                        2
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-[#5A1717] font-heading">
+                          Upload Payment Proof for Verification
+                        </h4>
+                        <p className="text-[10px] text-stone-600">
+                          Enter your UTR / Ref No. and attach your payment screenshot
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300">
+                      Required
+                    </span>
+                  </div>
+
+                  {/* Payment App Selector */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                      Payment App Used:
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                      {[
-                        { id: 'sbi', name: 'State Bank of India' },
-                        { id: 'hdfc', name: 'HDFC Bank' },
-                        { id: 'icici', name: 'ICICI Bank' },
-                        { id: 'axis', name: 'Axis Bank' },
-                        { id: 'kotak', name: 'Kotak Mahindra' },
-                        { id: 'bob', name: 'Bank of Baroda' },
-                      ].map((bank) => (
-                        <div
-                          key={bank.id}
-                          onClick={() => setSelectedBank(bank.id)}
-                          className={`p-2.5 rounded-xl border cursor-pointer font-medium transition-all ${
-                            selectedBank === bank.id
-                              ? 'bg-[#EDE3D1] border-[#5A1717] text-[#5A1717] font-bold ring-1 ring-[#5A1717]'
-                              : 'bg-stone-50 border-stone-200 hover:bg-stone-100 text-stone-700'
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-xs font-medium">
+                      {['Google Pay', 'PhonePe', 'Paytm', 'BHIM UPI', 'Cred', 'Other / Bank'].map((app) => (
+                        <button
+                          key={app}
+                          type="button"
+                          onClick={() => setPaymentApp(app)}
+                          className={`p-2 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
+                            paymentApp === app
+                              ? 'bg-[#5A1717] text-white border-[#5A1717] shadow-xs'
+                              : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
                           }`}
                         >
-                          {bank.name}
-                        </div>
+                          {app}
+                        </button>
                       ))}
                     </div>
-
-                    <div className="mt-2">
-                      <label className="block text-[11px] font-semibold text-stone-600 mb-1">
-                        All Other Indian Banks (40+ Banks)
-                      </label>
-                      <select
-                        value={selectedBank}
-                        onChange={(e) => setSelectedBank(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs focus:outline-none"
-                      >
-                        <option value="pnb">Punjab National Bank</option>
-                        <option value="canara">Canara Bank</option>
-                        <option value="union">Union Bank of India</option>
-                        <option value="idbi">IDBI Bank</option>
-                        <option value="yes">Yes Bank</option>
-                        <option value="indusind">IndusInd Bank</option>
-                      </select>
-                    </div>
                   </div>
-                )}
+
+                  {/* UTR Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wide mb-1">
+                      12-Digit UPI Transaction ID / UTR Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 429011928374 or UPI/429011928374"
+                      value={utrInput}
+                      onChange={(e) => {
+                        setUtrInput(e.target.value);
+                        setPaymentValidationError(null);
+                      }}
+                      className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs font-mono font-semibold text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#B88935]"
+                    />
+                    <span className="text-[10px] text-stone-500 mt-1 block">
+                      Find this in your UPI app receipt under "UPI Transaction ID" or "UTR / Ref No."
+                    </span>
+                  </div>
+
+                  {/* Payment Screenshot Upload Dropzone */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                      Upload Payment Screenshot (Receipt) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleScreenshotFileChange}
+                      className="hidden"
+                    />
+
+                    {paymentScreenshot ? (
+                      <div className="p-3 bg-white rounded-xl border-2 border-emerald-500/50 flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={paymentScreenshot}
+                            alt="Uploaded receipt"
+                            onClick={() => setShowEnlargedScreenshot(true)}
+                            className="w-14 h-14 rounded-lg object-cover border border-emerald-400 cursor-pointer shadow-xs hover:opacity-90"
+                          />
+                          <div>
+                            <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span>Payment Screenshot Attached</span>
+                            </div>
+                            <div className="text-[11px] text-stone-600 mt-0.5 font-medium truncate max-w-[200px] sm:max-w-xs">
+                              {screenshotFileName || 'Payment_Receipt.png'}
+                            </div>
+                            <span className="text-[10px] text-stone-400 font-mono">
+                              {screenshotFileSize || 'Verified File'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowEnlargedScreenshot(true)}
+                            className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                            title="View enlarged image"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentScreenshot(null);
+                              setScreenshotFileName(null);
+                              setScreenshotFileSize(null);
+                            }}
+                            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-colors cursor-pointer"
+                            title="Remove attached screenshot"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-4 rounded-xl border-2 border-dashed border-[#B88935]/50 bg-white/80 hover:bg-amber-50/50 hover:border-[#B88935] transition-all flex items-center justify-center gap-2.5 text-stone-700 cursor-pointer"
+                      >
+                        <Upload className="w-5 h-5 text-[#C56A18] shrink-0" />
+                        <div className="text-left">
+                          <span className="text-xs font-bold text-[#5A1717] block">
+                            Click to Upload Payment Screenshot
+                          </span>
+                          <span className="text-[10px] text-stone-500">
+                            JPG, PNG, WebP — Max 5 MB
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {paymentValidationError && (
+                    <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                      <span>{paymentValidationError}</span>
+                    </div>
+                  )}
+
+                  {/* Under Verification Process Guidance */}
+                  <div className="p-3 rounded-xl bg-white/90 border border-amber-300/60 text-[11px] text-stone-700 space-y-1">
+                    <div className="font-bold text-[#5A1717] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#C56A18]" />
+                      <span>Under Verification Protocol:</span>
+                    </div>
+                    <p className="text-stone-600 leading-relaxed">
+                      Upon submission, your booking status will be placed <strong>Under Verification</strong>. Our Purohit office will cross-verify your ₹1,000 credit in the bank ledger. Once verified, you will receive an official booking confirmation email at <strong>{yajmanData.email || 'your email'}</strong>, and our Guruji will contact you directly.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* STEP 7: Booking Confirmed / Digital Sankalp Pass */}
+          {/* STEP 7: Booking Under Verification / Digital Sankalp Pass */}
           {bookingConfirmed && (
-            <div className="text-center py-1">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 border-2 border-emerald-500 text-emerald-700 flex items-center justify-center mx-auto mb-2 text-2xl shadow-sm animate-in zoom-in-75">
-                ✓
+            <div className="text-center py-1 w-full">
+              <div className="w-16 h-16 rounded-full bg-amber-100 border-2 border-amber-500 text-amber-800 flex items-center justify-center mx-auto mb-2 text-2xl shadow-sm animate-in zoom-in-75">
+                <Clock className="w-8 h-8 text-amber-600 animate-pulse" />
               </div>
 
-              <span className="text-xs font-bold uppercase tracking-widest text-[#C56A18] font-sans">
-                ॥ ॐ नमः शिवाय ॥
-              </span>
-              <h3 className="text-xl sm:text-2xl font-bold font-sanskrit text-[#5A1717] mt-0.5 mb-1">
-                पूजा संकल्प व टोकन पुष्टी यशस्वी!
-              </h3>
-              <p className="text-xs text-stone-600 max-w-md mx-auto mb-4">
-                Your Puja booking and ₹1,000 advance deposit have been confirmed. An official Sankalp pass has been generated and emailed to{' '}
-                <strong>{yajmanData.email}</strong>.
+              <div className="flex flex-col gap-1.5 mb-2.5">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#C56A18] font-sans">
+                  ॥ ॐ नमः शिवाय ॥ श्री त्र्यंबकेश्वर सेवा
+                </span>
+                <h3 className="text-xl sm:text-2xl font-bold font-sanskrit text-[#5A1717] leading-snug">
+                  पूजा नोंदणी प्राप्त • पेमेंट पडताळणी प्रलंबित
+                </h3>
+              </div>
+              
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100/90 border border-amber-400 text-amber-900 text-xs font-bold mb-3 shadow-xs">
+                <Clock className="w-3.5 h-3.5 text-amber-700" />
+                <span>Status: Booking Under Verification (पडताळणी प्रलंबित)</span>
+              </div>
+
+              <p className="text-xs text-stone-600 w-full mb-3.5 leading-relaxed">
+                Your Pooja booking request and ₹1,000 advance payment screenshot have been submitted. Because UPI transactions require manual ledger reconciliation by our Purohit office, your booking is currently <strong>Under Verification</strong>.
               </p>
 
+              {/* Explanatory 3-Step Verification Notice */}
+              <div className="p-3.5 mb-4 rounded-2xl bg-amber-50 border border-amber-300/80 text-left w-full text-xs space-y-2">
+                <div className="font-bold text-[#5A1717] flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-[#C56A18] shrink-0" />
+                  <span>Next Steps (पुढील प्रक्रिया):</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-[11px] text-stone-700">
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <span><strong>Bank Ledger Reconciliation:</strong> Our Purohit office is verifying the ₹1,000 advance credit for UTR <strong className="font-mono text-[#5A1717]">{transactionId}</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <span><strong>Official Confirmation Email:</strong> As soon as the transaction is verified by Admin, you will receive an official booking confirmation email at <strong className="text-[#5A1717]">{yajmanData.email}</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <span><strong>Guruji Direct Guidance:</strong> Our Hereditary Vatandar Tirth Purohit, <strong>Pt. Pravin Shambhu Deshmukh (Desai)</strong>, will contact you directly on WhatsApp / Mobile (<strong>+91 {yajmanData.phone}</strong>) 24 hours prior to guide you on fasting (upvaas), traditional dress code, and exact Muhurat preparation.</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Printable / Savable Pass Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-b from-[#EDE3D1]/80 to-[#F5EEE0] border-2 border-[#B88935]/50 text-left max-w-lg mx-auto shadow-lg relative overflow-hidden">
-                {/* Background Watermark Om */}
-                <div className="absolute right-[-20px] bottom-[-20px] opacity-5 pointer-events-none">
-                  <OmSymbol className="w-64 h-64 text-[#5A1717]" />
+              <div className="p-5 rounded-2xl bg-gradient-to-b from-[#EDE3D1]/80 to-[#F5EEE0] border-2 border-[#B88935]/50 text-left w-full shadow-lg relative overflow-hidden">
+                {/* Official Hereditary Purohit Sangh Registered Emblem Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-0 select-none">
+                  <img
+                    src="/assets/purohit-profile-transparent.png"
+                    alt="Shri Trimbakeshwar Purohit Sangh Watermark"
+                    className="w-56 sm:w-64 max-h-64 object-contain opacity-[0.11] filter contrast-125"
+                  />
                 </div>
 
                 {/* Card Top Strip */}
-                <div className="flex items-center justify-between pb-3 border-b border-[#B88935]/30 mb-3">
+                <div className="flex items-center justify-between pb-3 border-b border-[#B88935]/30 mb-3 relative z-10">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-stone-500 block">Booking Reference</span>
                     <div className="flex items-center gap-1.5">
@@ -1510,25 +2159,24 @@ export function BookingModal({
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-stone-500 block">Token Status</span>
-                    <div className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
-                      <BadgeCheck className="w-3.5 h-3.5" />
-                      <span>₹1,000 PAID</span>
+                    <div className="text-xs font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1 shadow-2xs">
+                      <Clock className="w-3.5 h-3.5 text-amber-700 animate-pulse" />
+                      <span>Booking Under Verification (पडताळणी प्रलंबित)</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Details Grid */}
-                <div className="space-y-2 text-xs">
+                <div className="space-y-2 text-xs relative z-10">
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
                     <span className="text-stone-600">Vidhi / Ritual:</span>
                     <span className="font-bold text-[#211D19]">{selectedVidhi?.name}</span>
                   </div>
 
-                  {/* Pricing Breakdown on Pass */}
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
-                    <span className="text-stone-600">Vidhi Dakshina:</span>
-                    <span className="font-medium text-stone-800">
-                      As per discussion with Guruji (₹1,000 Paid)
+                    <span className="text-stone-600">Advance Token Deposit:</span>
+                    <span className="font-semibold text-emerald-800">
+                      ₹1,000.00 (Submitted via {paymentApp})
                     </span>
                   </div>
 
@@ -1560,8 +2208,18 @@ export function BookingModal({
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
                     <span className="text-stone-600">Primary Devotee (Yajman):</span>
                     <span className="font-bold text-stone-800">
-                      {yajmanData.name || 'Respected Devotee'} ({yajmanData.gotra || 'Kashyap Gotra'})
+                      {yajmanData.name || 'Respected Devotee'} ({yajmanData.gotra ? (yajmanData.gotra.includes('Gotra') ? yajmanData.gotra : `${yajmanData.gotra} Gotra`) : 'Kashyap Gotra'})
                     </span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
+                    <span className="text-stone-600">Persons Attending (उपस्थित):</span>
+                    <span className="font-semibold text-stone-800">{yajmanData.familyMembers || 2} Persons</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
+                    <span className="text-stone-600">Contact WhatsApp / Phone:</span>
+                    <span className="font-semibold text-stone-800">+91 {yajmanData.phone}</span>
                   </div>
 
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
@@ -1570,14 +2228,56 @@ export function BookingModal({
                   </div>
 
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
-                    <span className="text-stone-600">Transaction ID:</span>
-                    <span className="font-mono text-[11px] text-stone-700">{transactionId}</span>
+                    <span className="text-stone-600">City & State:</span>
+                    <span className="font-medium text-stone-800">{yajmanData.city || 'Trimbakeshwar'}, {yajmanData.state || 'Maharashtra'}</span>
+                  </div>
+
+                  {yajmanData.address && (
+                    <div className="flex justify-between items-start py-0.5 border-b border-stone-200/50">
+                      <span className="text-stone-600 shrink-0">Client Address:</span>
+                      <span className="font-medium text-stone-800 text-right text-[11px] max-w-[240px] truncate">{yajmanData.address}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-start py-0.5 border-b border-stone-200/50">
+                    <span className="text-stone-600 shrink-0">Pooja Performing Venue:</span>
+                    <span className="font-semibold text-stone-800 text-right text-[11px] max-w-[240px]">
+                      {yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && yajmanData.customPoojaAddress
+                        ? yajmanData.customPoojaAddress
+                        : yajmanData.poojaVenue}
+                    </span>
                   </div>
 
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
-                    <span className="text-stone-600">Reporting Venue:</span>
-                    <span className="font-semibold text-stone-800">Kushavarta Kund Ghat & Mandir Gate 2</span>
+                    <span className="text-stone-600">UPI Transaction ID (UTR):</span>
+                    <span className="font-mono text-[11px] font-bold text-stone-800">{transactionId}</span>
                   </div>
+
+                  {/* Devotee Payment Screenshot Thumbnail */}
+                  {paymentScreenshot && (
+                    <div className="pt-2 pb-1 border-t border-stone-200/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={paymentScreenshot}
+                          alt="Uploaded Receipt"
+                          className="w-12 h-12 object-cover rounded-lg border border-amber-300 shadow-xs cursor-pointer hover:opacity-90"
+                          onClick={() => setShowEnlargedScreenshot(true)}
+                        />
+                        <div>
+                          <span className="text-[11px] font-bold text-stone-700 block">Attached UPI Receipt</span>
+                          <span className="text-[10px] text-stone-500 font-mono">App: {paymentApp}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowEnlargedScreenshot(true)}
+                        className="text-[11px] text-[#5A1717] font-semibold hover:underline flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-stone-200 shadow-xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Receipt</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Important Devotee Advice */}
@@ -1600,7 +2300,7 @@ export function BookingModal({
                   className="px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print Pass</span>
+                  <span>Print Receipt</span>
                 </button>
 
                 <button
@@ -1617,7 +2317,7 @@ export function BookingModal({
         </div>
 
         {/* Modal Bottom Footer Actions */}
-        <div className="p-3.5 sm:p-5 bg-white border-t border-stone-200 flex items-center justify-between">
+        <div className="p-3.5 sm:p-5 bg-white border-t border-stone-200 flex items-center justify-between shrink-0">
           {!bookingConfirmed ? (
             <>
               {currentStep > 1 ? (
@@ -1658,10 +2358,20 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={handleProceedToOtp}
-                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                    disabled={isSendingOtp}
+                    className="px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#5A1717] to-[#C56A18] hover:from-[#6D1B1B] hover:to-[#B88935] shadow-md flex items-center gap-1.5 transition-all disabled:opacity-75 cursor-pointer"
                   >
-                    <span>Verify Email (OTP)</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isSendingOtp ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Sending Secure OTP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Verify Email (OTP)</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -1669,10 +2379,20 @@ export function BookingModal({
                   <button
                     type="button"
                     onClick={handleVerifyOtpAndProceed}
-                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-800 hover:to-emerald-700 shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                    disabled={isVerifyingOtp}
+                    className="px-6 py-2.5 rounded-full text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-800 hover:to-emerald-700 shadow-md flex items-center gap-1.5 transition-all disabled:opacity-75 cursor-pointer"
                   >
-                    <Check className="w-4 h-4" />
-                    <span>Verify & Pay ₹1,000</span>
+                    {isVerifyingOtp ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Verifying Code...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Verify & Pay ₹1,000</span>
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -1688,10 +2408,15 @@ export function BookingModal({
                         <RefreshCw className="w-4 h-4 animate-spin" />
                         <span>{paymentStepText}</span>
                       </>
+                    ) : paymentMethod === 'card' || paymentMethod === 'netbanking' ? (
+                      <>
+                        <QrCode className="w-4 h-4 text-amber-300" />
+                        <span>Switch to Temple UPI QR (Cards & Net Banking Offline)</span>
+                      </>
                     ) : (
                       <>
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>Pay ₹1,000 & Confirm Booking</span>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Submit Booking & Payment for Verification</span>
                       </>
                     )}
                   </button>
@@ -1711,6 +2436,52 @@ export function BookingModal({
             </div>
           )}
         </div>
+
+        {/* Enlarged Payment Screenshot Lightbox Modal */}
+        {showEnlargedScreenshot && paymentScreenshot && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+            onClick={() => setShowEnlargedScreenshot(false)}
+          >
+            <div
+              className="relative max-w-lg w-full bg-[#1A0D0A] border border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 text-white">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                  <span className="font-bold text-sm text-amber-100 font-sanskrit">
+                    Attached UPI Payment Receipt
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEnlargedScreenshot(false)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-2 overflow-auto flex-1 flex items-center justify-center bg-black/50 rounded-2xl my-3">
+                <img
+                  src={paymentScreenshot}
+                  alt="Enlarged Payment Receipt"
+                  className="max-h-[65vh] w-auto object-contain rounded-xl shadow-lg border border-amber-500/20"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-stone-400 pt-1">
+                <span>UTR: <strong className="font-mono text-amber-300">{transactionId || utrInput}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setShowEnlargedScreenshot(false)}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs cursor-pointer"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

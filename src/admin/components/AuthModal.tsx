@@ -262,8 +262,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </button>
 
         {/* Brand Lockup & Sacred Crest */}
-        <div className="text-center mb-6">
-          <div className="flex justify-center mb-4">
+        <div className="text-center mb-6 flex flex-col items-center gap-1.5">
+          <div className="flex justify-center mb-2">
             <TrimbakBrandLogo size="md" isDarkTheme={true} />
           </div>
           <h2 id="auth-modal-title" className="text-lg sm:text-xl font-bold font-sanskrit text-amber-100 leading-snug">
@@ -273,10 +273,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {step === 'reset_password' && 'Create New Master Password'}
             {step === 'success' && 'Password Updated Successfully!'}
           </h2>
-          <div className="flex items-center justify-center gap-1.5 text-xs text-amber-300/80 mt-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Official Tirth Purohit Office • 25 Generations Royal Vatandar</span>
-          </div>
+          <p className="text-[11px] text-stone-400 font-sans">
+            Hereditary Purohit Office Access & Verification
+          </p>
         </div>
 
         {/* Error Notification Alert */}
@@ -372,15 +371,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               >
                 {loginMode === 'password' ? 'Login with OTP' : 'Login with Password'}
               </button>
-            </div>
-
-            {/* Rate Limiting Notice Badge */}
-            <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/20 text-[11px] text-amber-200/90 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                <span>Rate-limiting protection active</span>
-              </span>
-              <span className="font-mono text-stone-400">{remainingAttempts} attempts left</span>
             </div>
 
             {/* Primary Action Button */}

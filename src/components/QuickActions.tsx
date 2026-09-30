@@ -75,7 +75,7 @@ export function QuickActions({ currentLang, onOpenBooking }: QuickActionsProps) 
             <div
               key={action.id}
               id={action.id}
-              className={`flex flex-col justify-between p-5 rounded-xl sm:rounded-2xl bg-[#EDE3D1]/50 border ${action.accentColor} hover:bg-[#EDE3D1] hover:-translate-y-1 hover:shadow-md transition-all duration-300 group`}
+              className={`flex flex-col justify-between p-5 rounded-xl sm:rounded-2xl bg-[#EDE3D1]/50 border ${action.accentColor} hover:bg-[#EDE3D1] hover:shadow-md transition-all duration-300 group`}
             >
               <div>
                 <div className="w-12 h-12 rounded-xl bg-[#FBF6EA] border border-[#B88935]/25 flex items-center justify-center text-2xl shadow-sm mb-4 group-hover:scale-105 transition-transform">
