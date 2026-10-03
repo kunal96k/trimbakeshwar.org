@@ -27,8 +27,11 @@ import {
   generateFaqJsonLd,
   generateXmlSitemap,
 } from '../data/articlesData';
+import { fetchArticlesPage, formatArticleDate } from '../services/articleService';
 import { PUJA_LIST, GURUJI_LIST } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
+import { SEO } from '../components/SEO';
+import { SEO_CONFIG, getBreadcrumbSchema } from '../utils/seoData';
 import {
   BookOpen,
   Clock,
@@ -117,6 +120,31 @@ export function ArticlesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
+  // Dynamic articles state (Bundled ARTICLES_DATA + Live Database Articles)
+  const [allArticles, setAllArticles] = useState<ArticleItem[]>(ARTICLES_DATA);
+  const [isLoadingLive, setIsLoadingLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDynamicArticles() {
+      try {
+        setIsLoadingLive(true);
+        const res = await fetchArticlesPage({ page: 0, size: 300, sortBy: 'id', sortDir: 'desc' });
+        if (isMounted && res?.content?.length) {
+          setAllArticles(res.content as unknown as ArticleItem[]);
+        }
+      } catch (err) {
+        console.debug('Using bundled articles catalog fallback:', err);
+      } finally {
+        if (isMounted) setIsLoadingLive(false);
+      }
+    }
+    loadDynamicArticles();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Detail View State
   const [selectedLang, setSelectedLang] = useState<string>('en');
   const [copiedToast, setCopiedToast] = useState(false);
@@ -184,7 +212,16 @@ export function ArticlesPage() {
       description: `Comprehensive guide and authoritative articles regarding ${catSlug.replace(/-/g, ' ')} at Trimbakeshwar Kshetra.`,
       icon: 'temple',
     };
-    const categoryArticles = getArticlesByCategory(catSlug);
+    const categoryArticles = allArticles.filter((a) => {
+      const aCat = (a.category || '').toLowerCase().trim();
+      const aCatSlug = (a.categorySlug || '').toLowerCase().trim();
+      const target = catSlug.toLowerCase().trim();
+      return (
+        aCatSlug === target ||
+        aCat.replace(/[^a-z0-9]+/g, '-') === target ||
+        (a.tags && a.tags.some((t) => t.toLowerCase() === target))
+      );
+    });
 
     if (categoryArticles.length === 0 && !getCategoryBySlug(catSlug)) {
       return renderNotFound();
@@ -194,6 +231,17 @@ export function ArticlesPage() {
 
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title={`${categoryInfo.name} Articles & Shastras | Trimbakeshwar Knowledge Hub`}
+          description={categoryInfo.description}
+          canonicalPath={`/articles/category/${categoryInfo.slug}`}
+          keywords={[categoryInfo.name, 'Trimbakeshwar articles', 'Vedic rituals guide']}
+          schema={getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Articles', path: '/articles' },
+            { name: categoryInfo.name, path: `/articles/category/${categoryInfo.slug}` },
+          ])}
+        />
         <InnerPageHero
           breadcrumbs={[
             { label: 'Articles', route: '/articles' },
@@ -240,7 +288,7 @@ export function ArticlesPage() {
               <div className="md:col-span-7 p-6 sm:p-10 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Category Pillar Article</span>
+                  <span>Vedic Shastra Guide</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold font-heading leading-snug">
                   {pillarArticle.title}
@@ -341,10 +389,26 @@ export function ArticlesPage() {
       verificationStatus: 'VERIFIED' as const,
     };
 
-    const authorArticles = getArticlesByAuthor(authorSlug);
+    const authorArticles = allArticles.filter((a) => {
+      const target = authorSlug.toLowerCase().trim();
+      return (
+        (a.authorSlug && a.authorSlug.toLowerCase() === target) ||
+        (a.author && a.author.toLowerCase().replace(/[^a-z0-9]+/g, '-') === target)
+      );
+    });
 
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title={`${author.name} - Author & Vedic Shastra Scholar`}
+          description={`Read sacred pilgrimage and Vedic ritual research articles authored by ${author.name}, ${author.designation} at Trimbakeshwar.`}
+          canonicalPath={`/articles/author/${author.slug}`}
+          schema={getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Articles', path: '/articles' },
+            { name: author.name, path: `/articles/author/${author.slug}` },
+          ])}
+        />
         <InnerPageHero
           breadcrumbs={[
             { label: 'Articles', route: '/articles' },
@@ -434,10 +498,22 @@ export function ArticlesPage() {
   // 3. Tag Archive: /articles/tag/:tagSlug
   if (subPath.startsWith('tag/')) {
     const tagSlug = decodeURIComponent(subPath.replace('tag/', '').trim());
-    const tagArticles = getArticlesByTag(tagSlug);
+    const tagArticles = allArticles.filter((a) =>
+      a.tags && a.tags.some((t) => t.toLowerCase().trim() === tagSlug.toLowerCase().trim())
+    );
 
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title={`Articles tagged #${tagSlug} | Trimbakeshwar Knowledge Base`}
+          description={`Browse sacred research articles and pilgrim guides tagged with #${tagSlug} on Trimbakeshwar Jyotirlinga and Vedic Pooja traditions.`}
+          canonicalPath={`/articles/tag/${tagSlug}`}
+          schema={getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Articles', path: '/articles' },
+            { name: `#${tagSlug}`, path: `/articles/tag/${tagSlug}` },
+          ])}
+        />
         <InnerPageHero
           breadcrumbs={[
             { label: 'Articles', route: '/articles' },
@@ -474,8 +550,8 @@ export function ArticlesPage() {
 
   // 4. Detail View: /articles/:slug (or fallback to 404 if not found)
   if (subPath) {
-    const activeArticle = ARTICLES_DATA.find(
-      (a) => a.slug === subPath || a.id === subPath
+    const activeArticle = allArticles.find(
+      (a) => a.slug?.toLowerCase() === subPath.toLowerCase() || String(a.id) === subPath
     );
 
     if (!activeArticle) {
@@ -509,18 +585,11 @@ export function ArticlesPage() {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95"
             loading="lazy"
           />
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
             <span className="px-2.5 py-1 rounded-full bg-[#5A1717]/90 text-amber-200 text-[10px] font-bold tracking-wider uppercase border border-amber-400/30 backdrop-blur-xs">
               {article.category}
             </span>
           </div>
-          {article.featured && (
-            <div className="absolute top-3 right-3">
-              <span className="px-2 py-0.5 rounded-md bg-[#B88935] text-white text-[10px] font-bold shadow-xs">
-                ★ Featured
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Content Body */}
@@ -529,12 +598,12 @@ export function ArticlesPage() {
             <div className="flex items-center gap-2 text-[11px] text-stone-500">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3 text-[#C56A18]" />
-                <span>{article.publishedDate || article.date}</span>
+                <span>{formatArticleDate(article.publishedDate || article.date || article.publishedAt || article.createdAt)}</span>
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3 text-[#C56A18]" />
-                <span>{article.readingTime || article.readTime}</span>
+                <span>{article.readingTime || article.readTime || '6 min read'}</span>
               </span>
             </div>
 
@@ -589,8 +658,15 @@ export function ArticlesPage() {
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
         <div className="bg-gradient-to-b from-[#5A1717] via-[#431111] to-[#2B0A0A] text-white pt-24 pb-16 px-4 sm:px-6 text-center">
           <div className="max-w-2xl mx-auto space-y-4">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 mb-2">
-              <BookOpen className="w-7 h-7" />
+            <div className="relative inline-block mx-auto mb-2">
+              <img
+                src="/assets/purohit-profile.png"
+                alt="Shri Trimbakeshwar Purohit Official Logo"
+                className="w-16 h-16 rounded-full object-cover border-2 border-[#D4AF37] shadow-lg p-0.5 bg-[#5A1717]"
+              />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500/90 text-[#3A0F0F] flex items-center justify-center border border-amber-300 shadow-xs">
+                <BookOpen className="w-3 h-3" />
+              </div>
             </div>
             <h1 className="text-2xl sm:text-4xl font-bold font-heading">
               Article Not Found
@@ -682,8 +758,35 @@ export function ArticlesPage() {
 
     const articleJsonLd = generateArticleJsonLd(activeArticle);
 
+    const articleBreadcrumbs = getBreadcrumbSchema([
+      { name: 'Home', path: '/' },
+      { name: 'Articles', path: '/articles' },
+      { name: activeArticle.title, path: `/articles/${activeArticle.slug}` },
+    ]);
+
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title={displayTitle}
+          description={displaySubtitle || activeArticle.summary}
+          canonicalPath={`/articles/${activeArticle.slug}`}
+          ogImage={activeArticle.coverImage || activeArticle.imageUrl || activeArticle.image}
+          ogType="article"
+          articleMeta={{
+            publishedTime: activeArticle.publishedDate || activeArticle.date,
+            author: activeArticle.author,
+            section: activeArticle.category,
+            tags: activeArticle.tags,
+          }}
+          keywords={[
+            activeArticle.title,
+            activeArticle.category,
+            ...(activeArticle.tags || []),
+            'Trimbakeshwar guide',
+            'Vedic ritual instructions',
+          ]}
+          schema={[articleJsonLd, articleBreadcrumbs]}
+        />
         {/* Sticky Reading Progress Bar (Section 21) */}
         <div className="fixed top-0 left-0 right-0 h-1 bg-stone-200 z-50">
           <div
@@ -747,16 +850,16 @@ export function ArticlesPage() {
             <div className="flex flex-wrap items-center gap-4 text-xs text-stone-300 mt-4">
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#B88935]" />
-                <span>Published: {activeArticle.publishedDate || activeArticle.publishedAt || activeArticle.date}</span>
+                <span>Published: {formatArticleDate(activeArticle.publishedDate || activeArticle.publishedAt || activeArticle.date || activeArticle.createdAt)}</span>
               </span>
               {activeArticle.updatedAt && (
                 <span className="text-amber-300/80">
-                  (Updated: {activeArticle.updatedAt})
+                  (Updated: {formatArticleDate(activeArticle.updatedAt)})
                 </span>
               )}
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-[#B88935]" />
-                <span>{activeArticle.readingTime || activeArticle.readTime}</span>
+                <span>{activeArticle.readingTime || activeArticle.readTime || '6 min read'}</span>
               </span>
             </div>
 
@@ -1248,8 +1351,10 @@ export function ArticlesPage() {
                           <div className="text-xs font-bold text-[#5A1717] group-hover:text-[#C56A18] line-clamp-2 leading-snug">
                             {rel.title}
                           </div>
-                          <div className="text-[10px] text-stone-500 mt-1">
-                            {rel.readTime || rel.readingTime}
+                          <div className="text-[10px] text-stone-500 mt-1 flex items-center gap-1.5">
+                            <span>{formatArticleDate(rel.publishedDate || rel.date || rel.publishedAt || rel.createdAt)}</span>
+                            <span>•</span>
+                            <span>{rel.readTime || rel.readingTime || '6 min read'}</span>
                           </div>
                         </div>
                       </button>
@@ -1311,10 +1416,10 @@ export function ArticlesPage() {
 
   // --- Main Articles Directory View (/articles) ---
   function renderDirectoryView() {
-    const featuredArticle = ARTICLES_DATA.find((a) => a.featured) || ARTICLES_DATA[0];
+    const featuredArticle = allArticles.find((a) => a.featured) || allArticles[0];
 
     // Filtered articles list
-    const filteredArticles = ARTICLES_DATA.filter((article) => {
+    const filteredArticles = allArticles.filter((article) => {
       const matchesCategory =
         selectedCategory === 'All' ||
         article.category === selectedCategory ||
@@ -1339,6 +1444,22 @@ export function ArticlesPage() {
 
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title="Vedic Articles & Pilgrimage Guides | Trimbakeshwar Shastric Knowledge Hub"
+          description="Explore comprehensive research articles on Trimbakeshwar Jyotirlinga history, Narayan Nagbali vidhis, Kaal Sarp Yog, Pitru Shradha, Godavari origins, and pilgrim travel."
+          canonicalPath="/articles"
+          keywords={[
+            'Trimbakeshwar articles',
+            'Narayan Nagbali vidhi guide',
+            'Kaal Sarp dosh explanation',
+            'Trimbakeshwar history',
+            'Godavari origin Brahmagiri',
+          ]}
+          schema={getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Articles', path: '/articles' },
+          ])}
+        />
         {/* Hero Header */}
         <InnerPageHero
           breadcrumbs={[{ label: 'Articles' }]}
@@ -1429,7 +1550,7 @@ export function ArticlesPage() {
               <div className="md:col-span-7 p-6 sm:p-10 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Featured Shastra Study</span>
+                  <span>Vedic Shastra Study</span>
                 </div>
                 <h3 className="text-xl sm:text-2xl md:text-3xl font-bold font-heading leading-snug">
                   {featuredArticle.title}
@@ -1448,8 +1569,12 @@ export function ArticlesPage() {
                     <span>{featuredArticle.author}</span>
                   </span>
                   <span className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-300" />
+                    <span>{formatArticleDate(featuredArticle.publishedDate || featuredArticle.date || featuredArticle.publishedAt || featuredArticle.createdAt)}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{featuredArticle.readingTime || featuredArticle.readTime}</span>
+                    <span>{featuredArticle.readingTime || featuredArticle.readTime || '8 min read'}</span>
                   </span>
                 </div>
                 <div>
@@ -1599,7 +1724,7 @@ export function ArticlesPage() {
 
               <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 text-xs font-mono bg-stone-900 text-stone-200">
                 <div className="flex items-center justify-between text-[11px] text-amber-400 font-sans pb-2 border-b border-stone-700">
-                  <span>Dynamic Sitemap containing {ARTICLES_DATA.length} Articles & {CORE_ARTICLE_CATEGORIES.length} Categories</span>
+                  <span>Dynamic Sitemap containing {allArticles.length} Articles & {CORE_ARTICLE_CATEGORIES.length} Categories</span>
                   <button
                     onClick={() => handleCopyText(sitemapXml, 'sitemap')}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-600 transition-colors cursor-pointer"

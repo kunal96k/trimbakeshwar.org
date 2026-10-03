@@ -208,7 +208,7 @@ export function GlobalSearchModal() {
         </div>
 
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 scrollbar-none">
+        <div className="flex flex-wrap items-center gap-1.5 py-2.5">
           {categories.map((cat) => (
             <button
               key={cat}

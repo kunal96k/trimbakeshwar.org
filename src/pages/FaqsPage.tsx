@@ -3,6 +3,8 @@ import { InnerPageHero } from '../components/InnerPageHero';
 import { FAQS_LIST } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { ChevronDown, Search, HelpCircle, Phone, MessageSquare } from 'lucide-react';
+import { SEO } from '../components/SEO';
+import { getFAQPageSchema, getBreadcrumbSchema } from '../utils/seoData';
 
 export function FaqsPage() {
   const { navigate, openBooking } = useNavigation();
@@ -15,8 +17,27 @@ export function FaqsPage() {
     f.questionNative.includes(searchTerm)
   );
 
+  const faqSchema = getFAQPageSchema(FAQS_LIST);
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'FAQs', path: '/faqs' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Frequently Asked Questions (FAQs) | Trimbakeshwar Puja & Darshan Guide"
+        description="Find clear answers to common questions about Trimbakeshwar puja booking, dress codes, Narayan Nagbali procedure, Kaal Sarp Shanti, accommodation, and temple timings."
+        canonicalPath="/faqs"
+        keywords={[
+          'Trimbakeshwar FAQs',
+          'Narayan Nagbali rules',
+          'Trimbakeshwar dress code',
+          'Puja booking questions',
+          'Trimbakeshwar accommodation guidance',
+        ]}
+        schema={[faqSchema, breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'FAQs' }]}
         sanskritMantra="॥ संशयोच्छेदः परमो धर्मः ॥"

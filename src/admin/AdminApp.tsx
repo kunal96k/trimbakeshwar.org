@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   AdminTab,
   Booking,
@@ -11,13 +11,13 @@ import {
 import {
   initialBookings,
   initialDevoteeLeads,
-  initialNotifications,
   initialPanchang,
   currentAdminUser,
 } from './data/mockData';
 import { AdminLayout } from './components/AdminLayout';
 import { DashboardHomeView } from './components/DashboardHomeView';
 import { SubmodulePlaceholder } from './components/SubmodulePlaceholder';
+import { AdminSettingsModule } from './components/AdminSettingsModule';
 import { QRVerificationModal } from './components/QRVerificationModal';
 import { NewBookingModal } from './components/NewBookingModal';
 import { NotificationsDrawer } from './components/NotificationsDrawer';
@@ -33,6 +33,16 @@ import {
   normaliseServerBooking,
   updateBookingPaymentStatus,
 } from '../services/enquiryService';
+import {
+  fetchSession,
+  getStoredAdminUser,
+  logout,
+  ADMIN_PROFILE_EVENT,
+  ADMIN_SESSION_EVENT,
+  DEFAULT_ADMIN_USER,
+} from '../services/authService';
+import { RoyalSeal } from './components/RoyalSeal';
+import { ExternalLink } from 'lucide-react';
 
 function contactEnquiryToLead(enquiry: ContactEnquiryRecord): DevoteeLead {
   const createdAtDate = enquiry.createdAt ? new Date(enquiry.createdAt) : new Date();
@@ -54,7 +64,7 @@ function contactEnquiryToLead(enquiry: ContactEnquiryRecord): DevoteeLead {
     email: enquiry.email,
     city: enquiry.city || 'Trimbakeshwar',
     poojaRequested: enquiry.poojaRequested || enquiry.subject || 'Vedic Pooja Consultation',
-    preferredDate: enquiry.preferredDate || 'Flexible Muhurat',
+    preferredDate: enquiry.preferredDate || '',
     query: enquiry.devoteeMessage || '',
     timeAgo,
     status: (!enquiry.status || enquiry.status.toUpperCase() === 'NEW' ? 'new' : 'contacted') as 'new' | 'contacted',
@@ -87,13 +97,111 @@ interface AdminAppProps {
 
 export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) {
   // Navigation & Core State
+  const initialStoredUser = getStoredAdminUser();
+  const hasStoredSession = Boolean(initialStoredUser);
+
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [bookings, setBookings] = useState<Booking[]>(loadInitialBookings);
   const [leads, setLeads] = useState<DevoteeLead[]>(initialDevoteeLeads);
-  const [notifications, setNotifications] = useState<AdminNotification[]>(initialNotifications);
   const [panchang] = useState<PanchangInfo>(initialPanchang);
-  const [user, setUser] = useState<AdminUser>(currentAdminUser);
+  const [user, setUser] = useState<AdminUser>(initialStoredUser || currentAdminUser);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Notification read/delete tracking
+  const [readNotifIds, setReadNotifIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('trimbak_read_notif_ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [deletedNotifIds, setDeletedNotifIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('trimbak_deleted_notif_ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Dynamically derive real notifications from live bookings & enquiries
+  const notifications: AdminNotification[] = useMemo(() => {
+    const notifs: AdminNotification[] = [];
+
+    // 1. Pending Token Verifications (High Priority)
+    bookings
+      .filter((b) => b.qrStatus === 'pending_verification')
+      .forEach((b) => {
+        const id = `notif-token-${b.id}`;
+        if (!deletedNotifIds.has(id)) {
+          notifs.push({
+            id,
+            title: 'Advance Token Verification Pending',
+            message: `Devotee ${b.devoteeName} submitted ₹${b.advanceAmount || 1000} advance token for ${b.poojaType} (${b.date}). UTR: ${b.utrNumber || 'Under Review'}.`,
+            time: b.bookingDate || 'Recent',
+            unread: !readNotifIds.has(id),
+            type: 'payment',
+          });
+        }
+      });
+
+    // 2. New Devotee Enquiries
+    leads
+      .filter((l) => l.status === 'new')
+      .forEach((l) => {
+        const id = `notif-enq-${l.enquiryNumber || l.id}`;
+        if (!deletedNotifIds.has(id)) {
+          notifs.push({
+            id,
+            title: 'New Devotee Enquiry Received',
+            message: `Enquiry from ${l.name} (${l.city}): ${l.poojaRequested}. Phone: ${l.phone}.`,
+            time: l.timeAgo || 'Recent',
+            unread: !readNotifIds.has(id),
+            type: 'inquiry',
+          });
+        }
+      });
+
+    // 3. Confirmed Bookings
+    bookings
+      .filter((b) => b.qrStatus === 'verified')
+      .slice(0, 15)
+      .forEach((b) => {
+        const id = `notif-confirmed-${b.id}`;
+        if (!deletedNotifIds.has(id)) {
+          notifs.push({
+            id,
+            title: 'Confirmed Pooja Booking',
+            message: `Booking ${b.id} for ${b.devoteeName} (${b.poojaType}) scheduled on ${b.date} (${b.time}) is confirmed.`,
+            time: b.bookingDate || 'Recent',
+            unread: !readNotifIds.has(id),
+            type: 'booking',
+          });
+        }
+      });
+
+    // 4. Contacted Enquiries
+    leads
+      .filter((l) => l.status === 'contacted')
+      .slice(0, 10)
+      .forEach((l) => {
+        const id = `notif-contacted-${l.enquiryNumber || l.id}`;
+        if (!deletedNotifIds.has(id)) {
+          notifs.push({
+            id,
+            title: 'Devotee Consultation Followed Up',
+            message: `Devotee enquiry from ${l.name} (${l.poojaRequested}) marked as contacted.`,
+            time: l.timeAgo || 'Recent',
+            unread: !readNotifIds.has(id),
+            type: 'inquiry',
+          });
+        }
+      });
+
+    return notifs;
+  }, [bookings, leads, readNotifIds, deletedNotifIds]);
 
   // Fetch and sync real devotee contact enquiries from Spring Boot backend database
   const loadLiveEnquiries = async () => {
@@ -114,7 +222,7 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
   // Fetch and sync real pooja bookings from Spring Boot backend database
   const loadLiveBookings = async () => {
     try {
-      const res = await fetchBookingsPage({ size: 100 });
+      const res = await fetchBookingsPage({ size: 30 });
       if (res && Array.isArray(res.content)) {
         setBookings(res.content);
       }
@@ -136,7 +244,7 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
           'info',
           `New Devotee Contact: ${newLead.name}`,
           `Pooja: ${newLead.poojaRequested} • Phone: ${newLead.phone}. Saved in database.`,
-          'View Inquiries',
+          'View Enquiries',
           () => setActiveTab('inquiries')
         );
       } else {
@@ -192,9 +300,49 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
     };
   }, []);
 
+  // Synchronize Live Admin Session & Profile Events
+  useEffect(() => {
+    let isMounted = true;
+    const initSession = async () => {
+      const sessionUser = await fetchSession();
+      if (!isMounted) return;
+      if (sessionUser) {
+        setUser(sessionUser);
+        setIsAuthenticated(true);
+        setIsAuthModalOpen(false);
+      } else {
+        setIsAuthenticated(false);
+        setIsAuthModalOpen(true);
+      }
+    };
+    initSession();
+
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail) setUser(e.detail);
+    };
+    const handleSessionChange = (e: any) => {
+      if (e.detail) {
+        setUser(e.detail);
+        setIsAuthenticated(true);
+        setIsAuthModalOpen(false);
+      } else {
+        setIsAuthenticated(false);
+        setIsAuthModalOpen(true);
+      }
+    };
+
+    window.addEventListener(ADMIN_PROFILE_EVENT, handleProfileUpdate);
+    window.addEventListener(ADMIN_SESSION_EVENT, handleSessionChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener(ADMIN_PROFILE_EVENT, handleProfileUpdate);
+      window.removeEventListener(ADMIN_SESSION_EVENT, handleSessionChange);
+    };
+  }, []);
+
   // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(Boolean(initialOpenLogin));
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(hasStoredSession);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(!hasStoredSession);
   const [authInitialStep, setAuthInitialStep] = useState<AuthStep>('login');
 
   // System Status & Error Code State
@@ -205,22 +353,8 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
   const [selectedBookingForQR, setSelectedBookingForQR] = useState<Booking | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
 
-  // Android Native Heads-Up Notifications System
-  const [androidNotifications, setAndroidNotifications] = useState<AndroidNotificationItem[]>([
-    {
-      id: 'init-alert-1',
-      type: 'warning',
-      title: 'QR Advance Verification Pending',
-      message: '₹1,000 token screenshot received from Rajesh Sharma (Kaal Sarp Shanti). Swipe right or left to dismiss.',
-      timestamp: 'Just now',
-      appSource: 'Trimbak Admin • UPI',
-      actionLabel: 'Verify QR',
-      onAction: () => {
-        const pending = initialBookings.find((b) => b.qrStatus === 'pending_verification') || initialBookings[0];
-        setSelectedBookingForQR(pending);
-      },
-    },
-  ]);
+  // Android Native Heads-Up Notifications System (Live alerts only - no mock data)
+  const [androidNotifications, setAndroidNotifications] = useState<AndroidNotificationItem[]>([]);
 
   const addAndroidNotification = (
     type: NotificationType,
@@ -265,7 +399,6 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Handlers for Authentication
   const handleLoginSuccess = (emailOrPhone: string) => {
     setIsAuthenticated(true);
     setIsAuthModalOpen(false);
@@ -275,13 +408,22 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
       'Purohit Session Authenticated',
       `Welcome back, Pt. Pravin Shambhu Deshmukh (Desai). Master key validated securely.`
     );
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#/admin';
+    }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await logout();
     setIsAuthenticated(false);
+    setUser(DEFAULT_ADMIN_USER);
     setAuthInitialStep('login');
     setIsAuthModalOpen(true);
     addAndroidNotification('info', 'Session Signed Out', 'Admin access locked until master credentials provided.');
+    addToast('info', 'Signed Out', 'Administrator session terminated.');
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#/login';
+    }
   };
 
   // Handlers for QR Payment Approval & Rejection
@@ -397,21 +539,21 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
 
     addAndroidNotification(
       'info',
-      'Devotee Inquiry Updated',
+      'Devotee Enquiry Updated',
       'Devotee marked as contacted. Status synced with database.'
     );
   };
 
   // Handler for CSV Export
   const handleExportReport = () => {
-    const headers = 'Booking ID,Devotee Name,Phone,Pooja Type,Scheduled Date,Time,Advance Paid,QR Status\n';
+    const headers = 'Booking ID,Devotee Name,Phone,Pooja Type,Scheduled Date,Time,Advance Paid (INR),QR Status\n';
     const rows = bookings
       .map(
         (b) =>
-          `"${b.id}","${b.devoteeName}","${b.phone}","${b.poojaType}","${b.date}","${b.time}","₹${b.advanceAmount}","${b.qrStatus}"`
+          `"${b.id}","${b.devoteeName}","${b.phone}","${b.poojaType}","${b.date}","${b.time}","${b.advanceAmount || 1000}","${b.qrStatus}"`
       )
       .join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + headers + rows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -428,19 +570,70 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
   };
 
   // Notification Actions
+  const handleMarkAsRead = (id: string) => {
+    setReadNotifIds((prev) => {
+      const updated = new Set(prev).add(id);
+      try {
+        localStorage.setItem('trimbak_read_notif_ids', JSON.stringify(Array.from(updated)));
+      } catch {}
+      return updated;
+    });
+  };
+
   const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-    addAndroidNotification('info', 'Notifications Cleared', 'All pending alerts marked as read.');
+    const allIds = notifications.map((n) => n.id);
+    setReadNotifIds((prev) => {
+      const updated = new Set([...Array.from(prev), ...allIds]);
+      try {
+        localStorage.setItem('trimbak_read_notif_ids', JSON.stringify(Array.from(updated)));
+      } catch {}
+      return updated;
+    });
+    addAndroidNotification('info', 'Notifications Cleared', 'All active alerts marked as read.');
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    setDeletedNotifIds((prev) => {
+      const updated = new Set(prev).add(id);
+      try {
+        localStorage.setItem('trimbak_deleted_notif_ids', JSON.stringify(Array.from(updated)));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleClearAllNotifications = () => {
+    const allIds = notifications.map((n) => n.id);
+    setDeletedNotifIds((prev) => {
+      const updated = new Set([...Array.from(prev), ...allIds]);
+      try {
+        localStorage.setItem('trimbak_deleted_notif_ids', JSON.stringify(Array.from(updated)));
+      } catch {}
+      return updated;
+    });
+    addAndroidNotification('info', 'All Alerts Dismissed', 'Notification drawer cleared.');
   };
 
   const handleNotificationClick = (notification: AdminNotification) => {
-    if (notification.type === 'payment') {
-      const pendingBooking = bookings.find((b) => b.qrStatus === 'pending_verification') || bookings[0];
-      setSelectedBookingForQR(pendingBooking);
+    handleMarkAsRead(notification.id);
+    if (notification.type === 'payment' || notification.type === 'booking') {
+      const match = bookings.find(
+        (b) =>
+          (notification.id && b.id && (notification.id.includes(b.id) || b.id.includes(notification.id))) ||
+          notification.message.includes(b.devoteeName) ||
+          (b.utrNumber && notification.message.includes(b.utrNumber))
+      );
+      if (match) {
+        if (match.qrStatus === 'pending_verification') {
+          setSelectedBookingForQR(match);
+        } else {
+          setActiveTab('bookings');
+        }
+        return;
+      }
+      setActiveTab('bookings');
     } else if (notification.type === 'inquiry') {
       setActiveTab('inquiries');
-    } else if (notification.type === 'booking') {
-      setActiveTab('bookings');
     }
   };
 
@@ -512,6 +705,63 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
     );
   }
 
+  // If unauthenticated, render dedicated full-screen login gateway
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full bg-[#100705] flex flex-col justify-between items-center relative overflow-y-auto selection:bg-amber-600 selection:text-white">
+        {/* Sacred ambient background lighting */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-[#120705] to-[#0A0403] pointer-events-none" />
+
+        {/* Top Sacred Bar */}
+        <header className="w-full max-w-5xl mx-auto px-4 py-5 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3">
+            <RoyalSeal size="sm" />
+            <div>
+              <div className="text-xs font-bold text-amber-200 font-sanskrit tracking-wider">
+                ॥ श्री क्षेत्र त्र्यम्बकेश्वर ज्योतिर्लिंग ॥
+              </div>
+              <div className="text-[11px] text-stone-400 font-sans">
+                Hereditary Vatandar Purohit Administrative Suite
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              if (onExitAdmin) onExitAdmin();
+              else if (typeof window !== 'undefined') window.location.hash = '#/';
+            }}
+            className="text-xs text-amber-300/90 hover:text-amber-200 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all cursor-pointer shadow-sm"
+          >
+            <span>Return to Devotee Website</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </header>
+
+        {/* Central Auth Container */}
+        <main className="w-full max-w-md px-4 py-6 z-10 flex flex-col items-center">
+          <AuthModal
+            isOpen={true}
+            initialStep={authInitialStep}
+            onClose={() => {
+              if (onExitAdmin) onExitAdmin();
+              else if (typeof window !== 'undefined') window.location.hash = '#/';
+            }}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </main>
+
+        {/* Bottom Sacred Footer */}
+        <footer className="w-full py-4 text-center text-[11px] text-stone-500 z-10 border-t border-amber-500/10">
+          Official Hereditary Tirth Purohit Office · 25 Generations Lineage (Est. 1674) · All Rights Reserved
+        </footer>
+
+        {/* Toast Notification Container */}
+        <ToastContainer toasts={toasts} onDismiss={removeToast} />
+      </div>
+    );
+  }
+
   return (
     <>
       <AdminLayout
@@ -538,13 +788,25 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
           <DashboardHomeView
             bookings={bookings}
             leads={leads}
-            panchang={panchang}
             searchQuery={searchQuery}
             onOpenNewBooking={() => setIsNewBookingModalOpen(true)}
             onSelectBookingForQR={(booking) => setSelectedBookingForQR(booking)}
             onNavigateTab={(tab) => setActiveTab(tab)}
             onLeadContacted={handleLeadContacted}
-            onExportReport={handleExportReport}
+          />
+        ) : activeTab === 'settings' ? (
+          <AdminSettingsModule
+            currentUser={user}
+            onProfileUpdated={(updated) => {
+              setUser(updated);
+              addToast('success', 'Profile Updated', 'Vatandar Purohit profile saved.');
+              addAndroidNotification('success', 'Profile Updated', 'Vatandar Purohit profile persona saved.');
+            }}
+            onLogout={handleSignOut}
+            onShowToast={(type, title, msg) => {
+              addAndroidNotification(type, title, msg);
+              addToast(type === 'warning' ? 'info' : type, title, msg);
+            }}
           />
         ) : (
           <SubmodulePlaceholder
@@ -556,6 +818,13 @@ export function AdminApp({ onExitAdmin, initialOpenLogin }: AdminAppProps = {}) 
             onSelectBookingForQR={(booking) => setSelectedBookingForQR(booking)}
             onLeadContacted={handleLeadContacted}
             onRefreshLeads={loadLiveEnquiries}
+            onRefreshBookings={loadLiveBookings}
+            notifications={notifications}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onMarkAllAsRead={handleMarkAllNotificationsRead}
+            onMarkAsRead={handleMarkAsRead}
+            onDeleteNotification={handleDeleteNotification}
+            onClearAllNotifications={handleClearAllNotifications}
           />
         )}
       </AdminLayout>

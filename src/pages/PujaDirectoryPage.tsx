@@ -5,10 +5,32 @@ import { PUJA_LIST } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { Clock, ShieldCheck, ArrowRight, Flame } from 'lucide-react';
 import { AppRoute } from '../types';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema, SEO_CONFIG } from '../utils/seoData';
 
 export function PujaDirectoryPage() {
   const { navigate, openBooking } = useNavigation();
   const [filter, setFilter] = useState<'all' | 'ancestral' | 'shanti' | 'abhishek'>('all');
+
+  const pujaListSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Vedic Puja & Shanti Vidhis at Shri Trimbakeshwar',
+    description: 'Complete list of authentic Vedic Pooja Vidhis performed at Shri Kshetra Trimbakeshwar by authorized Purohits.',
+    itemListElement: PUJA_LIST.map((puja, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: puja.name,
+      url: `${SEO_CONFIG.siteUrl}/puja/${puja.slug}`,
+      image: `${SEO_CONFIG.siteUrl}${puja.image}`,
+      description: puja.description,
+    })),
+  };
+
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Puja Directory', path: '/puja' },
+  ]);
 
   const filteredPujas = PUJA_LIST.filter((p) => {
     if (filter === 'all') return true;
@@ -20,6 +42,22 @@ export function PujaDirectoryPage() {
 
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="All Vedic Pujas & Shanti Vidhis in Trimbakeshwar | Narayan Nagbali, Kaal Sarp & Tripindi"
+        description="Explore and book authentic Vedic Pooja Vidhis at Shri Trimbakeshwar Jyotirlinga. Narayan Nagbali (3 Days), Kaal Sarp Yog Shanti, Tripindi Shraddha, Maha Mrityunjaya Jaap & Rudrabhishek with Hereditary Purohits."
+        canonicalPath="/puja"
+        keywords={[
+          'Trimbakeshwar puja list',
+          'Narayan Nagbali Trimbakeshwar booking',
+          'Kaal Sarp Yog Shanti cost',
+          'Tripindi Shraddha samagri',
+          'Rudrabhishek at Trimbakeshwar',
+          'Maha Mrityunjaya Anushthan',
+          'Kumbh Vivah Trimbakeshwar',
+          'Ark Vivah Vidhi',
+        ]}
+        schema={[pujaListSchema, breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'Puja Directory' }]}
         title="Trimbakeshwar Puja Services"
@@ -41,7 +79,7 @@ export function PujaDirectoryPage() {
             <span className="font-heading font-bold text-[#5A1717]">Select Ritual Category</span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${

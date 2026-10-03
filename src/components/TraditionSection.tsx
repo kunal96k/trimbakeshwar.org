@@ -337,7 +337,7 @@ export function TraditionSection({ currentLang, onOpenBooking }: TraditionSectio
                     onClick={() => onOpenBooking && onOpenBooking(ritual.id)}
                     className="w-full mt-2 py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-200 hover:text-stone-950 border border-amber-400/40 hover:border-amber-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all group-hover:shadow-md"
                   >
-                    <span>{isMarathi ? 'मुहूर्त आरक्षित करा / विधी बुक' : 'Reserve Muhurat / Inquire'}</span>
+                    <span>{isMarathi ? 'मुहूर्त आरक्षित करा / विधी बुक' : 'Reserve Muhurat / Enquire'}</span>
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                   </button>
                 </div>

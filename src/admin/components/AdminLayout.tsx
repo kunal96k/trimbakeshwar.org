@@ -9,12 +9,12 @@ import {
   MessageSquareQuote,
   QrCode,
   ImagePlus,
-  BarChart3,
   Settings,
   Bell,
   Menu,
   X,
   Plus,
+  BookOpen,
   ExternalLink,
   ChevronRight,
   LogOut,
@@ -79,7 +79,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     },
     {
       id: 'inquiries' as AdminTab,
-      label: 'Inquiries',
+      label: 'Enquiries',
       icon: MessageSquareQuote,
       badge: newLeadsCount > 0 ? `${newLeadsCount}` : null,
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -98,10 +98,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       badge: null,
     },
     {
-      id: 'analytics' as AdminTab,
-      label: 'Reports',
-      icon: BarChart3,
+      id: 'articles' as AdminTab,
+      label: 'Articles & Blogs',
+      icon: BookOpen,
       badge: null,
+    },
+    {
+      id: 'notifications' as AdminTab,
+      label: 'Notifications',
+      icon: Bell,
+      badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount}` : null,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     },
     {
       id: 'settings' as AdminTab,
@@ -168,7 +175,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full bg-black/40 border border-amber-500/25 hover:border-amber-400/50 transition-all"
               aria-label="Open profile options"
             >
-              <GurujiAvatar size="sm" showOnlineStatus={true} />
+              <GurujiAvatar size="sm" showOnlineStatus={true} src={user.avatarUrl} alt={user.name} />
               <div className="hidden lg:block text-left">
                 <div className="text-xs font-bold text-amber-200 leading-none">
                   {user.name}
@@ -205,32 +212,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         onSelectTab('settings');
                         setProfileDropdownOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-stone-200 hover:bg-amber-500/15 hover:text-amber-200 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 rounded-xl text-stone-200 hover:bg-amber-500/15 hover:text-amber-200 flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <Settings className="w-4 h-4 text-amber-400" />
-                      <span>Settings & Bank QR</span>
+                      <span>Profile & Settings</span>
                     </button>
 
                     <button
                       onClick={() => {
-                        onOpenAuthModal();
+                        onSelectTab('settings');
                         setProfileDropdownOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-stone-200 hover:bg-amber-500/15 hover:text-amber-200 flex items-center gap-2"
+                      className="w-full text-left px-3 py-2 rounded-xl text-stone-200 hover:bg-amber-500/15 hover:text-amber-200 flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <KeyRound className="w-4 h-4 text-amber-400" />
-                      <span>Password & Security</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        onSelectTab('analytics');
-                        setProfileDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-stone-200 hover:bg-amber-500/15 hover:text-amber-200 flex items-center gap-2"
-                    >
-                      <BarChart3 className="w-4 h-4 text-amber-400" />
-                      <span>Seva Reports</span>
+                      <span>Reset Password</span>
                     </button>
                   </div>
 
@@ -347,7 +343,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         )}
 
         {/* 3. MAIN DASHBOARD CONTENT AREA */}
-        <main className="flex-1 h-full overflow-y-auto min-h-0 p-3.5 sm:p-6 lg:p-8 space-y-6 pb-28 lg:pb-8 flex flex-col justify-between custom-scrollbar">
+        <main className="flex-1 h-full overflow-y-auto min-h-0 p-3.5 sm:p-6 lg:p-8 space-y-6 pb-36 lg:pb-24 flex flex-col justify-between custom-scrollbar">
           {/* Children renders active tab */}
           <div className="flex-1">
             {children}

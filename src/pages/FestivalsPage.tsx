@@ -4,12 +4,32 @@ import { FESTIVALS_LIST } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { Sparkles, Calendar, Clock, ArrowRight } from 'lucide-react';
 import { KumbhaIcon } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema } from '../utils/seoData';
 
 export function FestivalsPage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Festivals & Holy Celebrations', path: '/festivals' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Trimbakeshwar Temple Festivals | Mahashivratri, Simhastha Kumbh Mela & Rath Yatra"
+        description="Discover the sacred festivals of Shri Trimbakeshwar Jyotirlinga: Mahashivratri, Simhastha Kumbh Mela, Shravan Maas Somvar, Tripuri Deepotsav, and Rathotsav."
+        canonicalPath="/festivals"
+        keywords={[
+          'Trimbakeshwar Mahashivratri',
+          'Simhastha Kumbh Mela Trimbakeshwar',
+          'Shravan Somvar Trimbak',
+          'Tripuri Purnima deepotsav',
+          'Rathotsav Trimbakeshwar',
+        ]}
+        schema={breadcrumbsSchema}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'Festivals' }]}
         sanskritMantra="॥ उत्सवो जयते सदा ॥"

@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- 1. Home Page -->
+  <url>
+    <loc>https://www.tirthapurohit.in/</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.tirthapurohit.in/" />
+    <xhtml:link rel="alternate" hreflang="mr" href="https://www.tirthapurohit.in/" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://www.tirthapurohit.in/" />
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/jyotirlinga-temple-main.webp</image:loc>
+      <image:title>Shri Trimbakeshwar Jyotirlinga Mandir</image:title>
+      <image:caption>Sacred Trimbakeshwar Jyotirlinga Temple &amp; Purohit Portal</image:caption>
+    </image:image>
+  </url>
+
+  <!-- 2. Puja Directory -->
+  <url>
+    <loc>https://www.tirthapurohit.in/puja</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Individual Puja Detail Pages -->
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/narayan-nagbali</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/narayan-nagbali.webp</image:loc>
+      <image:title>Narayan Nagbali Puja Trimbakeshwar</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/kaal-sarp-shanti</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/kaalsarp-pooja.webp</image:loc>
+      <image:title>Kaal Sarp Yog Shanti Trimbakeshwar</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/tripindi-shraddha</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/tripindi-shraddha.webp</image:loc>
+      <image:title>Tripindi Shraddha Vidhi</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/maha-mrityunjaya-jaap</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/mahamrityunjaya-jaap.webp</image:loc>
+      <image:title>Maha Mrityunjaya Anushthan Trimbakeshwar</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/rudrabhishek</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/rudrabhishek-pooja.webp</image:loc>
+      <image:title>Rudrabhishek Puja Trimbakeshwar</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/kumbh-vivah</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/kumbh-vivah.webp</image:loc>
+      <image:title>Kumbh Vivah Vidhi</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/puja/ark-vivah</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/trimbak/ark-vivah.webp</image:loc>
+      <image:title>Ark Vivah Vidhi</image:title>
+    </image:image>
+  </url>
+
+  <!-- 3. Guruji Directory -->
+  <url>
+    <loc>https://www.tirthapurohit.in/guruji</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://www.tirthapurohit.in/assets/purohit-profile.png</image:loc>
+      <image:title>Pt. Pravin Shambhu Deshmukh Hereditary Purohit</image:title>
+    </image:image>
+  </url>
+
+  <!-- 4. Temple & Jyotirlinga Information -->
+  <url>
+    <loc>https://www.tirthapurohit.in/temple</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/jyotirlinga</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/temple/story</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/darshan</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/temple-guide</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/travel</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/sacred-places</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://www.tirthapurohit.in/festivals</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- 5. Articles & Blogs -->
+  <url>
+    <loc>https://www.tirthapurohit.in/articles</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- 6. Gallery -->
+  <url>
+    <loc>https://www.tirthapurohit.in/gallery</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- 7. About & Trust -->
+  <url>
+    <loc>https://www.tirthapurohit.in/about</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- 8. Contact & Helpdesk -->
+  <url>
+    <loc>https://www.tirthapurohit.in/contact</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- 9. FAQs -->
+  <url>
+    <loc>https://www.tirthapurohit.in/faqs</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+</urlset>

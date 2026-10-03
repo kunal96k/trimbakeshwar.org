@@ -2,12 +2,33 @@ import React from 'react';
 import { InnerPageHero } from '../components/InnerPageHero';
 import { useNavigation } from '../context/NavigationContext';
 import { Plane, Train, Bus, MapPin, Navigation, Car, Clock } from 'lucide-react';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema } from '../utils/seoData';
 
 export function TravelGuidePage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple', path: '/temple' },
+    { name: 'How to Reach Trimbakeshwar', path: '/travel' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="How to Reach Trimbakeshwar from Mumbai, Pune & Nashik | Travel Route Guide"
+        description="Complete travel guide to reach Trimbakeshwar Jyotirlinga: distance from Nashik Road Railway Station (36 km), Mumbai (175 km), Pune (235 km), nearest Ozar airport, and bus schedules."
+        canonicalPath="/travel"
+        keywords={[
+          'How to reach Trimbakeshwar',
+          'Mumbai to Trimbakeshwar distance',
+          'Pune to Trimbakeshwar route',
+          'Nashik railway station to Trimbak taxi',
+          'Trimbakeshwar nearest airport',
+        ]}
+        schema={breadcrumbsSchema}
+      />
       <InnerPageHero
         breadcrumbs={[
           { label: 'Temple', route: '/temple' },

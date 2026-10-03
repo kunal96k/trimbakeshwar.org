@@ -4,7 +4,8 @@ export type AdminTab =
   | 'inquiries'
   | 'payments'
   | 'gallery'
-  | 'analytics'
+  | 'articles'
+  | 'notifications'
   | 'settings';
 
 export type ErrorStatusCode = '404' | '403' | '500' | '502' | '503';
@@ -89,10 +90,18 @@ export interface PanchangInfo {
 }
 
 export interface AdminUser {
+  id?: number | string;
   name: string;
+  fullName?: string;
   role: string;
   email: string;
   phone: string;
-  lineage: string;
-  isOnline: boolean;
+  designation?: string;
+  lineage?: string;
+  avatarUrl?: string;
+  isOnline?: boolean;
+  active?: boolean;
+  twoFactorEnabled?: boolean;
+  lastLoginAt?: string;
 }
+

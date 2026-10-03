@@ -1,5 +1,11 @@
 import React from 'react';
 import { useNavigation } from '../context/NavigationContext';
+import { SEO } from '../components/SEO';
+import {
+  getPlaceOfWorshipSchema,
+  getPurohitLocalBusinessSchema,
+  getGurujiPersonSchema,
+} from '../utils/seoData';
 import { Hero } from '../components/Hero';
 import { QuickActions } from '../components/QuickActions';
 import { TempleIntro } from '../components/TempleIntro';
@@ -20,8 +26,32 @@ import { FaqSection } from '../components/FaqSection';
 export function HomePage() {
   const { currentLang, openBooking, navigate } = useNavigation();
 
+  const homeSchemas = [
+    getPlaceOfWorshipSchema(),
+    getPurohitLocalBusinessSchema(),
+    getGurujiPersonSchema(),
+  ];
+
   return (
     <div className="flex-grow">
+      {/* Dynamic SEO Meta & Schema.org JSON-LD */}
+      <SEO
+        title="Shri Trimbakeshwar Jyotirlinga | Authorized Guruji, Puja Booking & Darshan Guide"
+        description="Official portal for Shri Trimbakeshwar Jyotirlinga. Book authentic Narayan Nagbali, Kaal Sarp Yog Shanti, Tripindi Shraddha, and Rudrabhishek with Hereditary Vatandar Purohit Pt. Pravin Shambhu Deshmukh in Nashik, Maharashtra."
+        canonicalPath="/"
+        keywords={[
+          'Trimbakeshwar Jyotirlinga',
+          'Trimbakeshwar Purohit contact',
+          'Narayan Nagbali Puja Trimbakeshwar',
+          'Kaal Sarp Dosh Nivaran Trimbakeshwar',
+          'Tripindi Shraddha Nashik',
+          'Maha Mrityunjaya Jaap',
+          'Pandit Pravin Deshmukh',
+          'Kushavarta Kund',
+          'Brahmagiri mountain Godavari origin',
+        ]}
+        schema={homeSchemas}
+      />
       {/* 1. Cinematic Hero Section with Sanskrit Invocations */}
       <Hero
         currentLang={currentLang}

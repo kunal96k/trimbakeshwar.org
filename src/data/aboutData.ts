@@ -223,7 +223,7 @@ export const DIGITAL_BRIDGE_STEPS = [
     actorNative: 'डिजिटल दुवा',
     action: 'Connect',
     actionNative: 'थेट संवाद',
-    description: 'Devotee explores verified Guruji profiles and sends a direct inquiry.',
+    description: 'Devotee explores verified Guruji profiles and sends a direct enquiry.',
   },
   {
     id: 'step-4',

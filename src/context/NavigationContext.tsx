@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppRoute, SupportedLanguage } from '../types';
 
+import { trackPageView } from '../utils/analytics';
+
 interface NavigationContextType {
   currentRoute: AppRoute;
   navigate: (route: AppRoute) => void;
@@ -60,6 +62,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       // Update hash or pathname so URL is shareable and back-button works
       window.history.pushState({}, '', '#' + route);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      trackPageView(route);
     }
   };
 
@@ -73,15 +76,21 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Initial page track
+    trackPageView(currentRoute);
+
     const handleUrlChange = () => {
       let hash = window.location.hash.replace(/^#/, '');
+      let targetRoute: AppRoute = '/';
       if (hash) {
         if (!hash.startsWith('/')) hash = '/' + hash;
-        setCurrentRoute(hash as AppRoute);
+        targetRoute = hash as AppRoute;
       } else {
         const path = window.location.pathname;
-        setCurrentRoute(path as AppRoute);
+        targetRoute = (path as AppRoute) || '/';
       }
+      setCurrentRoute(targetRoute);
+      trackPageView(targetRoute);
     };
 
     window.addEventListener('popstate', handleUrlChange);

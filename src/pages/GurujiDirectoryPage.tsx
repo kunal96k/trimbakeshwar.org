@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { InnerPageHero } from '../components/InnerPageHero';
 import { GURUJI_LIST } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
+import { SEO } from '../components/SEO';
+import { getGurujiPersonSchema, getPurohitLocalBusinessSchema, getBreadcrumbSchema } from '../utils/seoData';
 import {
   ShieldCheck,
   Phone,
@@ -84,8 +86,29 @@ export function GurujiDirectoryPage() {
     });
   }, [searchQuery, selectedLanguage, selectedSpecialty]);
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Guruji Directory', path: '/guruji' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Authorized Hereditary Vedic Purohit & Gurujis | Pt. Pravin Shambhu Deshmukh"
+        description="Consult with Pt. Pravin Shambhu Deshmukh, 25th Generation Tamrapatra-dhari Hereditary Purohit of Shri Trimbakeshwar Jyotirlinga. Authentic Vedic guidance, Muhurat consultation & ritual booking."
+        canonicalPath="/guruji"
+        ogImage="/assets/purohit-profile.png"
+        keywords={[
+          'Trimbakeshwar Guruji',
+          'Pt Pravin Shambhu Deshmukh',
+          'Tamrapatra purohit Trimbakeshwar',
+          'Trimbakeshwar pandit contact number',
+          'Authorized Vedic Guruji Nashik',
+          'Best Guruji for Narayan Nagbali',
+          'Best Guruji for Kalsarp Shanti',
+        ]}
+        schema={[getGurujiPersonSchema(), getPurohitLocalBusinessSchema(), breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'Guruji Directory' }]}
         sanskritMantra="॥ विद्वान् सर्वत्र पूज्यते • वंशपरंपरागत पुरोहित सेवा ॥"
@@ -145,14 +168,14 @@ export function GurujiDirectoryPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-100 text-xs">
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 border-t border-stone-100 text-xs">
+            <div className="flex flex-wrap items-center gap-2 py-1">
               <span className="text-stone-500 font-bold whitespace-nowrap">Ritual Specialty:</span>
               {allSpecialties.map((spec) => (
                 <button
                   key={spec}
                   onClick={() => setSelectedSpecialty(spec)}
-                  className={`px-3 py-1 rounded-full whitespace-nowrap font-medium transition-colors cursor-pointer ${
+                  className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
                     selectedSpecialty === spec
                       ? 'bg-[#5A1717] text-white shadow-xs'
                       : 'bg-[#EDE3D1]/60 text-stone-700 hover:bg-[#EDE3D1]'
@@ -163,13 +186,13 @@ export function GurujiDirectoryPage() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
+            <div className="flex flex-wrap items-center gap-2 py-1">
               <span className="text-stone-500 font-bold whitespace-nowrap">Language:</span>
               {allLanguages.map((lang) => (
                 <button
                   key={lang}
                   onClick={() => setSelectedLanguage(lang)}
-                  className={`px-3 py-1 rounded-full whitespace-nowrap font-medium transition-colors cursor-pointer ${
+                  className={`px-3 py-1 rounded-full font-medium transition-colors cursor-pointer ${
                     selectedLanguage === lang
                       ? 'bg-[#C56A18] text-white shadow-xs'
                       : 'bg-[#EDE3D1]/60 text-stone-700 hover:bg-[#EDE3D1]'

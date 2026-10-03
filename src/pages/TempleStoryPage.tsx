@@ -3,12 +3,33 @@ import { InnerPageHero } from '../components/InnerPageHero';
 import { useNavigation } from '../context/NavigationContext';
 import { BookOpen, Sparkles, Droplets, Mountain, ArrowRight } from 'lucide-react';
 import { BrahmagiriIcon } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema } from '../utils/seoData';
 
 export function TempleStoryPage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple', path: '/temple' },
+    { name: 'Sacred Story & Lore', path: '/temple/story' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Legend of Sage Gautama & River Godavari Origin | Trimbakeshwar Puranic Story"
+        description="Read the sacred Shiva Purana narrative of Sage Gautama penance on Brahmagiri mountain, Lord Shiva releasing Ganga as River Gautami (Godavari), and manifest Jyotirlinga."
+        canonicalPath="/temple/story"
+        keywords={[
+          'Trimbakeshwar story',
+          'Sage Gautama tapasya',
+          'Godavari origin legend',
+          'Gautami Ganga descent',
+          'Brahmagiri mountain history',
+        ]}
+        schema={breadcrumbsSchema}
+      />
       <InnerPageHero
         breadcrumbs={[
           { label: 'Temple', route: '/temple' },

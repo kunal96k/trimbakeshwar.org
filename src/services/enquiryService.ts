@@ -60,6 +60,8 @@ export interface EnquiryFetchParams {
   sortDir?: 'asc' | 'desc';
   search?: string;
   status?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 /** Spring Page response shape */
@@ -138,6 +140,8 @@ export interface PaymentFetchParams {
   search?: string;
   status?: string;
   method?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface PagedPaymentResponse {
@@ -164,7 +168,7 @@ export interface PaymentStats {
 
 const API_BASE_URL =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) ||
-  'http://localhost:8080/api';
+  '/api';
 
 // ─── Submit contact form ───────────────────────────────────────────────────────
 
@@ -225,6 +229,32 @@ export async function submitContactEnquiry(
   }
 }
 
+// ─── Date filter helper ────────────────────────────────────────────────────────
+/**
+ * Date range filter matcher adhering strictly to:
+ * - If only fromDate is provided: matches records on that specific date only (exact single-day match)
+ * - If only toDate is provided: matches records from earliest up to that date (<= toDate)
+ * - If both fromDate & toDate are provided: matches records in the date range
+ */
+export function matchDateFilter(itemDateStr?: string, fromDate?: string, toDate?: string): boolean {
+  if (!fromDate && !toDate) return true;
+  if (!itemDateStr) return false;
+  const dStr = itemDateStr.slice(0, 10);
+  if (fromDate && toDate) {
+    let f = fromDate;
+    let t = toDate;
+    if (f > t) { const tmp = f; f = t; t = tmp; }
+    return dStr >= f && dStr <= t;
+  }
+  if (fromDate) {
+    return dStr === fromDate;
+  }
+  if (toDate) {
+    return dStr <= toDate;
+  }
+  return true;
+}
+
 // ─── Paginated fetch with server-side search / filter / sort ──────────────────
 
 /**
@@ -243,6 +273,8 @@ export async function fetchEnquiriesPage(
     sortDir = 'desc',
     search = '',
     status = '',
+    fromDate = '',
+    toDate = '',
   } = params;
 
   const query = new URLSearchParams({
@@ -250,8 +282,10 @@ export async function fetchEnquiriesPage(
     size: String(size),
     sortBy,
     sortDir,
-    ...(search  ? { search }  : {}),
-    ...(status  ? { status }  : {}),
+    ...(search   ? { search }   : {}),
+    ...(status   ? { status }   : {}),
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate   ? { toDate }   : {}),
   });
 
   try {
@@ -286,8 +320,27 @@ export async function fetchEnquiriesPage(
     console.debug('Using cached/local contact enquiries (backend unreachable):', err);
   }
 
-  // Fallback: local cache
-  const localList = getStoredEnquiries();
+  // Fallback: local cache filtered by search, status, and date range
+  let localList = getStoredEnquiries();
+  if (status) {
+    localList = localList.filter((e) => e.status?.toUpperCase() === status.toUpperCase());
+  }
+  if (fromDate || toDate) {
+    localList = localList.filter((e) => matchDateFilter(e.createdAt, fromDate, toDate));
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    localList = localList.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.phone.includes(q) ||
+        (e.email && e.email.toLowerCase().includes(q)) ||
+        (e.enquiryNumber && e.enquiryNumber.toLowerCase().includes(q)) ||
+        (e.city && e.city.toLowerCase().includes(q)) ||
+        (e.subject && e.subject.toLowerCase().includes(q))
+    );
+  }
+
   return {
     content:       localList,
     totalElements: localList.length,
@@ -411,6 +464,8 @@ export async function fetchContactEnquiryStats(): Promise<{
   };
 }
 
+export const fetchEnquiryStats = fetchContactEnquiryStats;
+
 // ─── Paginated Booking Fetch ───────────────────────────────────────────────────
 
 export interface BookingFetchParams {
@@ -420,6 +475,8 @@ export interface BookingFetchParams {
   sortDir?: 'asc' | 'desc';
   search?: string;
   status?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface PagedBookingResponse {
@@ -447,13 +504,13 @@ export function normaliseServerBooking(b: any): any {
     gotra: b.gotra || 'Vedic Gotra',
     city: b.city || 'Trimbakeshwar',
     state: b.state || 'Maharashtra',
-    devoteeAddress: b.devoteeAddress || '',
+    devoteeAddress: b.devoteeAddress || b.yajmanAddress || b.address || '',
     poojaType: b.poojaType || 'Vedic Vidhi Puja',
     poojaCategory: b.poojaCategory || '',
-    date: b.scheduledDate || b.date || 'Flexible Muhurat',
+    date: b.scheduledDate || b.date || '',
     time: b.timeSlot || b.time || '06:30 AM',
-    location: b.location || 'Kushavarta Kund Ghat & Mandir Gate 2',
-    poojaAddress: b.poojaAddress || b.location || 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar',
+    location: b.location || '',
+    poojaAddress: b.poojaAddress || b.location || '',
     status: isVerified ? 'upcoming' : 'pending_verification',
     statusLabel: isVerified ? 'Confirmed Booking' : isRejected ? 'Payment Rejected' : 'Token Under Verification',
     familyMembersCount: b.familyMembersCount || 1,
@@ -486,6 +543,8 @@ export async function fetchBookingsPage(
     sortDir = 'desc',
     search = '',
     status = '',
+    fromDate = '',
+    toDate = '',
   } = params;
 
   const query = new URLSearchParams({
@@ -493,8 +552,10 @@ export async function fetchBookingsPage(
     size: String(size),
     sortBy,
     sortDir,
-    ...(search ? { search } : {}),
-    ...(status ? { status } : {}),
+    ...(search   ? { search }   : {}),
+    ...(status   ? { status }   : {}),
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate   ? { toDate }   : {}),
   });
 
   try {
@@ -526,7 +587,27 @@ export async function fetchBookingsPage(
   }
 
   // Fallback: localStorage
-  const localList = getStoredBookings();
+  let localList = getStoredBookings();
+  if (status) {
+    localList = localList.filter((b: any) => b.qrStatus === status);
+  }
+  if (fromDate || toDate) {
+    localList = localList.filter((b: any) => matchDateFilter(b.createdAt || b.date, fromDate, toDate));
+  }
+  if (search) {
+    const q = search.toLowerCase();
+    localList = localList.filter(
+      (b: any) =>
+        b.devoteeName?.toLowerCase().includes(q) ||
+        b.phone?.includes(q) ||
+        (b.email && b.email.toLowerCase().includes(q)) ||
+        (b.id && b.id.toLowerCase().includes(q)) ||
+        (b.utrNumber && b.utrNumber.toLowerCase().includes(q)) ||
+        (b.poojaType && b.poojaType.toLowerCase().includes(q)) ||
+        (b.city && b.city.toLowerCase().includes(q))
+    );
+  }
+
   return {
     content: localList,
     totalElements: localList.length,
@@ -637,14 +718,14 @@ export async function submitPoojaBooking(
     poojaType: booking.poojaType || 'Vedic Vidhi Puja',
     date: booking.scheduledDate,
     time: booking.timeSlot || '06:30 AM',
-    location: booking.location || 'Kushavarta Kund Ghat & Mandir Gate 2',
-    poojaAddress: booking.poojaAddress || booking.location || 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar',
+    location: booking.location || '',
+    poojaAddress: booking.poojaAddress || booking.location || '',
     status: 'upcoming',
     statusLabel: 'Payment Under Verification',
     gotra: booking.gotra ? (booking.gotra.includes('Gotra') ? booking.gotra : `${booking.gotra} Gotra`) : 'Kashyap Gotra',
     city: booking.city || 'Trimbakeshwar',
     state: booking.state || 'Maharashtra',
-    devoteeAddress: booking.devoteeAddress || '',
+    devoteeAddress: booking.devoteeAddress || (booking as any).yajmanAddress || (booking as any).address || '',
     familyMembersCount: booking.familyMembersCount || 2,
     advanceAmount: booking.advanceAmount || 1000,
     totalPoojaDakshina: 'As per Vedic Scriptures',
@@ -774,7 +855,7 @@ function saveFallbackEnquiry(enquiry: ContactEnquiryPayload): ApiResponse<Contac
     subject: enquiry.subject?.trim() || enquiry.poojaRequested?.trim() || 'General Enquiry',
     poojaRequested: enquiry.poojaRequested?.trim() || enquiry.subject?.trim() || 'Ritual Consultation',
     devoteeMessage: enquiry.message.trim(),
-    preferredDate: enquiry.preferredDate || 'Flexible',
+    preferredDate: enquiry.preferredDate || '',
     preferredContactMethod: enquiry.preferredContactMethod || 'phone',
     status: 'NEW',
     createdAt: new Date().toISOString(),
@@ -807,7 +888,7 @@ function normaliseServerItem(
     subject:               item.subject       || fallback?.subject || 'General Enquiry',
     poojaRequested:        item.poojaRequested || item.subject    || 'Ritual Consultation',
     devoteeMessage:        item.devoteeMessage || item.message    || '',
-    preferredDate:         item.preferredDate  || fallback?.preferredDate || 'Flexible',
+    preferredDate:         item.preferredDate  || fallback?.preferredDate || '',
     preferredContactMethod: item.preferredContactMethod || fallback?.preferredContactMethod || 'phone',
     adminNotes:            item.adminNotes     || '',
     status:                item.status         || 'NEW',
@@ -865,6 +946,8 @@ export async function fetchPaymentsPage(
     search = '',
     status = '',
     method = '',
+    fromDate = '',
+    toDate = '',
   } = params;
 
   const query = new URLSearchParams({
@@ -872,9 +955,11 @@ export async function fetchPaymentsPage(
     size: String(size),
     sortBy,
     sortDir,
-    ...(search ? { search } : {}),
-    ...(status ? { status } : {}),
-    ...(method ? { method } : {}),
+    ...(search   ? { search }   : {}),
+    ...(status   ? { status }   : {}),
+    ...(method   ? { method }   : {}),
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate   ? { toDate }   : {}),
   });
 
   try {
@@ -912,6 +997,9 @@ export async function fetchPaymentsPage(
   }
   if (method) {
     filtered = filtered.filter((p) => p.paymentMethod === method);
+  }
+  if (fromDate || toDate) {
+    filtered = filtered.filter((p) => matchDateFilter(p.createdAt, fromDate, toDate));
   }
   if (search) {
     const q = search.toLowerCase();

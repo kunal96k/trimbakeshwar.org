@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SupportedLanguage, ArticleItem } from '../types';
 import { ARTICLES_LIST } from '../data/siteData';
-import { BookOpen, Clock, ArrowRight, X } from 'lucide-react';
+import { fetchArticlesPage, formatArticleDate } from '../services/articleService';
+import { BookOpen, Clock, Calendar, ArrowRight, X } from 'lucide-react';
 
 interface ArticlesSectionProps {
   currentLang: SupportedLanguage;
@@ -9,6 +10,21 @@ interface ArticlesSectionProps {
 
 export function ArticlesSection({ currentLang }: ArticlesSectionProps) {
   const [selectedArticle, setSelectedArticle] = useState<ArticleItem | null>(null);
+  const [articles, setArticles] = useState<ArticleItem[]>(ARTICLES_LIST);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchArticlesPage({ page: 0, size: 6, sortBy: 'id', sortDir: 'desc' })
+      .then((res) => {
+        if (mounted && res?.content?.length) {
+          setArticles(res.content.slice(0, 6) as unknown as ArticleItem[]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <section id="articles" className="py-20 sm:py-28 bg-[#FBF6EA] relative">
@@ -28,7 +44,7 @@ export function ArticlesSection({ currentLang }: ArticlesSectionProps) {
 
         {/* 6 Article Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ARTICLES_LIST.map((article) => (
+          {articles.map((article) => (
             <div
               key={article.id}
               className="bg-[#EDE3D1]/40 rounded-2xl border border-[#B88935]/30 overflow-hidden hover:bg-[#EDE3D1]/80 hover:shadow-lg transition-all duration-300 group flex flex-col justify-between"
@@ -65,14 +81,21 @@ export function ArticlesSection({ currentLang }: ArticlesSectionProps) {
                 </div>
 
                 <div className="pt-3 border-t border-[#B88935]/15 flex items-center justify-between">
-                  <span className="text-[11px] text-stone-500 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-[#C56A18]" />
-                    {article.readTime}
-                  </span>
+                  <div className="text-[11px] text-stone-500 flex items-center gap-2">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-[#C56A18]" />
+                      <span>{formatArticleDate(article.publishedDate || article.date || article.publishedAt || article.createdAt)}</span>
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-[#C56A18]" />
+                      <span>{article.readTime || article.readingTime || '6 min read'}</span>
+                    </span>
+                  </div>
 
                   <button
                     onClick={() => setSelectedArticle(article)}
-                    className="text-xs font-semibold text-[#5A1717] hover:text-[#C56A18] flex items-center gap-1 group/btn"
+                    className="text-xs font-semibold text-[#5A1717] hover:text-[#C56A18] flex items-center gap-1 group/btn cursor-pointer"
                   >
                     <span>Read Article</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />

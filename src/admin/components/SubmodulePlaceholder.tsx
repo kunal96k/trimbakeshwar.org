@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AdminTab, Booking, DevoteeLead } from '../types';
+import { AdminTab, Booking, DevoteeLead, AdminNotification } from '../types';
 import {
   CalendarCheck,
   QrCode,
@@ -59,6 +59,7 @@ import {
   fetchBookingsPage,
   fetchBookingStats,
   updateBookingPaymentStatus,
+  matchDateFilter,
 } from '../../services/enquiryService';
 import {
   getTempleUpiConfig,
@@ -68,6 +69,9 @@ import {
   UPI_CONFIG_UPDATED_EVENT,
   TempleUpiConfig,
 } from '../../services/templePaymentConfig';
+import { AdminGalleryModule } from './AdminGalleryModule';
+import { AdminArticlesModule } from './AdminArticlesModule';
+import { AdminNotificationsModule } from './AdminNotificationsModule';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +84,13 @@ interface SubmodulePlaceholderProps {
   onSelectBookingForQR: (booking: Booking) => void;
   onLeadContacted?: (leadId: string) => void;
   onRefreshLeads?: () => void;
+  onRefreshBookings?: () => void;
+  notifications?: AdminNotification[];
+  onNavigateTab?: (tab: AdminTab) => void;
+  onMarkAllAsRead?: () => void;
+  onMarkAsRead?: (id: string) => void;
+  onDeleteNotification?: (id: string) => void;
+  onClearAllNotifications?: () => void;
 }
 
 type SortField = 'id' | 'createdAt' | 'name' | 'status' | 'enquiryNumber' | 'city';
@@ -110,7 +121,7 @@ function exportToCSV(enquiries: ContactEnquiryRecord[]) {
     `"${(e.phone || '').replace(/"/g, '""')}"`,
     `"${(e.city || 'Trimbakeshwar').replace(/"/g, '""')}"`,
     `"${(e.poojaRequested || e.subject || '').replace(/"/g, '""')}"`,
-    `"${(e.preferredDate || 'Flexible').replace(/"/g, '""')}"`,
+    `"${(e.preferredDate || '').replace(/"/g, '""')}"`,
     `"${(e.preferredContactMethod || 'phone').replace(/"/g, '""')}"`,
     `"${(e.status || 'NEW').replace(/"/g, '""')}"`,
     `"${(e.createdAt ? new Date(e.createdAt).toLocaleString('en-IN') : '').replace(/"/g, '""')}"`,
@@ -179,7 +190,7 @@ function exportToExcel(enquiries: ContactEnquiryRecord[]) {
               <td class="num">${e.phone}</td>
               <td>${e.city || 'Trimbakeshwar'}</td>
               <td>${e.poojaRequested || e.subject || 'Ritual'}</td>
-              <td>${e.preferredDate || 'Flexible'}</td>
+              <td>${e.preferredDate || 'Not Specified'}</td>
               <td>${e.preferredContactMethod || 'phone'}</td>
               <td class="status-${(e.status || 'new').toLowerCase()}">${e.status}</td>
               <td>${e.createdAt ? new Date(e.createdAt).toLocaleString('en-IN') : ''}</td>
@@ -274,7 +285,7 @@ function exportToPDF(enquiries: ContactEnquiryRecord[]) {
               <td>${e.phone}<br/><span style="color:#666;">${e.email}</span></td>
               <td>${e.city || 'Trimbakeshwar'}</td>
               <td>${e.poojaRequested || e.subject || 'Ritual'}</td>
-              <td>${e.preferredDate || 'Flexible'}</td>
+              <td>${e.preferredDate || 'Not Specified'}</td>
               <td><span class="badge badge-${e.status}">${e.status}</span></td>
               <td>${e.devoteeMessage || '-'}</td>
             </tr>
@@ -312,16 +323,208 @@ function StatusBadge({ status }: { status: string }) {
   };
   const { cls, icon, label } = cfg[upper] ?? cfg.NEW;
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-medium border ${cls}`}>
+    <span className={`w-fit inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-medium border whitespace-nowrap shrink-0 ${cls}`}>
       {icon}
       {label}
     </span>
   );
 }
 
-// ─── Inquiries Module (Compact, Zero Waste Space, Server-Side 25/Page) ────────
+// ─── Date Filter Utilities & Component ────────────────────────────────────────
 
-function InquiriesModule({
+function getTodayIso(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getYesterdayIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getDaysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getFirstDayOfMonthIso(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+}
+
+interface DateFilterBarProps {
+  fromDate: string;
+  toDate: string;
+  onFromDateChange: (val: string) => void;
+  onToDateChange: (val: string) => void;
+  onClear: () => void;
+}
+
+function DateFilterBar({
+  fromDate,
+  toDate,
+  onFromDateChange,
+  onToDateChange,
+  onClear,
+}: DateFilterBarProps) {
+  const hasFilter = Boolean(fromDate || toDate);
+  const today = getTodayIso();
+  const yesterday = getYesterdayIso();
+  const last7Days = getDaysAgoIso(7);
+  const firstDayOfMonth = getFirstDayOfMonthIso();
+
+  let statusText = '';
+  if (fromDate && toDate) {
+    statusText = `Range: ${fromDate} → ${toDate}`;
+  } else if (fromDate) {
+    statusText = `Exact Date: ${fromDate} only`;
+  } else if (toDate) {
+    statusText = `From start up to ${toDate}`;
+  }
+
+  return (
+    <div className={`flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 p-2.5 rounded-xl border transition-all ${
+      hasFilter
+        ? 'bg-[#22100A] border-amber-500/50 shadow-inner'
+        : 'bg-black/40 border-amber-500/20'
+    }`}>
+      {/* Date Pickers */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300 mr-1">
+          <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Date Filter:</span>
+        </div>
+
+        {/* FROM Date */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-stone-400 font-mono uppercase tracking-wider">From</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => onFromDateChange(e.target.value)}
+            className="px-2.5 py-1 rounded-lg bg-stone-900 border border-amber-500/30 text-stone-100 text-xs font-mono focus:outline-none focus:border-amber-400 [color-scheme:dark] shadow-sm"
+            title="When only From Date is selected, filters records on that specific date only"
+          />
+        </div>
+
+        {/* TO Date */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-stone-400 font-mono uppercase tracking-wider">To</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => onToDateChange(e.target.value)}
+            className="px-2.5 py-1 rounded-lg bg-stone-900 border border-amber-500/30 text-stone-100 text-xs font-mono focus:outline-none focus:border-amber-400 [color-scheme:dark] shadow-sm"
+            title="When only To Date is selected, filters records from the very first record up to that date"
+          />
+        </div>
+
+        {/* Clear Button */}
+        {hasFilter && (
+          <button
+            onClick={onClear}
+            className="px-2.5 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-200 border border-rose-500/40 text-xs font-medium flex items-center gap-1 transition-colors"
+            title="Clear date filters"
+          >
+            <X className="w-3 h-3 text-rose-400" />
+            <span>Reset Dates</span>
+          </button>
+        )}
+      </div>
+
+      {/* Quick Filter Presets & Filter Notice */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] text-stone-500 font-mono hidden sm:inline">Presets:</span>
+        <button
+          type="button"
+          onClick={() => {
+            onFromDateChange(today);
+            onToDateChange('');
+          }}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border ${
+            fromDate === today && !toDate
+              ? 'bg-amber-500 text-stone-950 font-bold border-amber-400 shadow'
+              : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-amber-500/40 hover:text-amber-200'
+          }`}
+          title="Filter only today's records"
+        >
+          Today
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onFromDateChange(yesterday);
+            onToDateChange('');
+          }}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border ${
+            fromDate === yesterday && !toDate
+              ? 'bg-amber-500 text-stone-950 font-bold border-amber-400 shadow'
+              : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-amber-500/40 hover:text-amber-200'
+          }`}
+          title="Filter only yesterday's records"
+        >
+          Yesterday
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onFromDateChange(last7Days);
+            onToDateChange(today);
+          }}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border ${
+            fromDate === last7Days && toDate === today
+              ? 'bg-amber-500 text-stone-950 font-bold border-amber-400 shadow'
+              : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-amber-500/40 hover:text-amber-200'
+          }`}
+          title="Filter records from the last 7 days"
+        >
+          Last 7 Days
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onFromDateChange(firstDayOfMonth);
+            onToDateChange(today);
+          }}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border ${
+            fromDate === firstDayOfMonth && toDate === today
+              ? 'bg-amber-500 text-stone-950 font-bold border-amber-400 shadow'
+              : 'bg-stone-900 text-stone-300 border-stone-700 hover:border-amber-500/40 hover:text-amber-200'
+          }`}
+          title="Filter records from this month"
+        >
+          This Month
+        </button>
+
+        {hasFilter && statusText && (
+          <span className="text-[10px] font-mono text-amber-200 font-semibold px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 whitespace-nowrap">
+            {statusText}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Enquiries Module (Compact, Zero Waste Space, Server-Side 25/Page) ────────
+
+function EnquiriesModule({
   leads,
   onLeadContacted,
 }: {
@@ -338,6 +541,8 @@ function InquiriesModule({
   const [search, setSearch] = useState('');
   const [inputVal, setInputVal] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('id');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -367,10 +572,10 @@ function InquiriesModule({
     }
   }, []);
 
-  // Re-fetch on filter/page/sort change
+  // Re-fetch on filter/page/sort/date change
   useEffect(() => {
-    loadPage({ page, size: pageSize, sortBy, sortDir, search, status: statusFilter });
-  }, [page, pageSize, search, statusFilter, sortBy, sortDir, loadPage]);
+    loadPage({ page, size: pageSize, sortBy, sortDir, search, status: statusFilter, fromDate, toDate });
+  }, [page, pageSize, search, statusFilter, sortBy, sortDir, fromDate, toDate, loadPage]);
 
   // Search debounce
   const handleSearchInput = (val: string) => {
@@ -434,6 +639,8 @@ function InquiriesModule({
           sortDir,
           search,
           status: statusFilter,
+          fromDate,
+          toDate,
         });
         if (fullRes.content && fullRes.content.length > 0) {
           dataToExport = fullRes.content;
@@ -473,7 +680,7 @@ function InquiriesModule({
   const endRecord = Math.min((page + 1) * pageSize, totalElements);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-140px)] justify-between space-y-3.5">
+    <div className="flex flex-col min-h-[calc(100vh-140px)] justify-between space-y-3.5 pb-20">
       {/* ─── Compact Top Control Bar (No useless headers or wasted space) ─── */}
       <div className="rounded-2xl bg-[#1A0D0A] border border-amber-500/25 p-3.5 sm:p-4 shadow-xl space-y-3">
         {/* Row 1: Title, Live DB Badge, Stats & Export Buttons */}
@@ -482,16 +689,12 @@ function InquiriesModule({
             <h2 className="text-base font-bold text-amber-100 font-sanskrit flex items-center gap-2">
               <span>Devotee Enquiries</span>
             </h2>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono flex items-center gap-1">
-              <Database className="w-3 h-3" />
-              <span>Live DB</span>
-            </span>
             <span className="text-xs text-amber-300 font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
               {totalElements} Total · {newCount} New
             </span>
             <button
               onClick={() =>
-                loadPage({ page, size: pageSize, sortBy, sortDir, search, status: statusFilter })
+                loadPage({ page, size: pageSize, sortBy, sortDir, search, status: statusFilter, fromDate, toDate })
               }
               disabled={loading}
               className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 border border-stone-700 transition-colors disabled:opacity-50"
@@ -538,7 +741,26 @@ function InquiriesModule({
           </div>
         </div>
 
-        {/* Row 2: Search, Status Filter & Sorting Bar */}
+        {/* Row 2: FROM - TO Date Filter Bar */}
+        <DateFilterBar
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={(val) => {
+            setFromDate(val);
+            setPage(0);
+          }}
+          onToDateChange={(val) => {
+            setToDate(val);
+            setPage(0);
+          }}
+          onClear={() => {
+            setFromDate('');
+            setToDate('');
+            setPage(0);
+          }}
+        />
+
+        {/* Row 3: Search, Status Filter & Sorting Bar */}
         <div className="flex flex-col md:flex-row gap-2">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -669,13 +891,13 @@ function InquiriesModule({
         )}
       </div>
 
-      {/* ─── Server-Side Pagination Bar (25 Records / Page - Fixed / Sticky to Bottom) ─── */}
+      {/* ─── Server-Side Pagination Bar (25 Records / Page - Fixed Docked to Bottom & Edges) ─── */}
       {totalElements > 0 && (
-        <div className="sticky bottom-0 z-20 mt-auto flex flex-col sm:flex-row items-center justify-between gap-3 p-3 sm:px-4 rounded-2xl bg-[#140805]/95 backdrop-blur-md border border-amber-500/30 shadow-2xl text-xs">
+        <div className="fixed bottom-14 lg:bottom-0 left-0 lg:left-64 right-0 z-30 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3 bg-[#120705]/95 backdrop-blur-xl border-t border-amber-500/30 shadow-[0_-8px_25px_rgba(0,0,0,0.7)] text-xs">
           <div className="text-stone-400 font-mono text-[11px]">
             Showing <span className="text-amber-300 font-bold">{startRecord}</span> to{' '}
             <span className="text-amber-300 font-bold">{endRecord}</span> of{' '}
-            <span className="text-stone-200 font-bold">{totalElements}</span> entries (25 per page)
+            <span className="text-stone-200 font-bold">{totalElements}</span> entries ({pageSize} per page)
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -687,7 +909,7 @@ function InquiriesModule({
             />
             <PageBtn
               icon={<ChevronLeft className="w-3.5 h-3.5" />}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0 || loading}
               title="Previous page"
             />
@@ -702,9 +924,9 @@ function InquiriesModule({
                   key={p}
                   onClick={() => setPage(p)}
                   disabled={loading}
-                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors ${p === page
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
-                      : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${p === page
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
+                    : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
                     }`}
                 >
                   {p + 1}
@@ -714,7 +936,7 @@ function InquiriesModule({
 
             <PageBtn
               icon={<ChevronRight className="w-3.5 h-3.5" />}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1 || loading}
               title="Next page"
             />
@@ -759,7 +981,7 @@ function PageBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 border border-stone-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 border border-stone-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
     >
       {icon}
     </button>
@@ -796,8 +1018,8 @@ function EnquiryCard({
   return (
     <div
       className={`p-3 sm:p-3.5 rounded-2xl border transition-colors space-y-2.5 ${isNew
-          ? 'bg-[#1e100c] border-amber-500/35 hover:border-amber-400/60'
-          : 'bg-[#150a08]/90 border-amber-500/15 hover:border-amber-400/35'
+        ? 'bg-[#1e100c] border-amber-500/35 hover:border-amber-400/60'
+        : 'bg-[#150a08]/90 border-amber-500/15 hover:border-amber-400/35'
         }`}
     >
       {/* Top Header Row */}
@@ -906,10 +1128,11 @@ function EnquiryCard({
           <a
             href={`tel:${record.phone.replace(/\s+/g, '')}`}
             onClick={() => isNew && onStatusChange(record, 'CONTACTED')}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-400/30 text-xs font-semibold flex items-center gap-1 hover:bg-amber-500 hover:text-stone-950 transition-colors no-underline"
+            className="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-400/30 hover:bg-amber-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0 no-underline"
+            title={`Call Devotee: ${record.phone}`}
+            aria-label={`Call Devotee ${record.phone}`}
           >
-            <Phone className="w-3 h-3" />
-            <span>Call</span>
+            <Phone className="w-3.5 h-3.5" />
           </a>
 
           {/* Quick WhatsApp */}
@@ -918,10 +1141,11 @@ function EnquiryCard({
             target="_blank"
             rel="noreferrer"
             onClick={() => isNew && onStatusChange(record, 'CONTACTED')}
-            className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 text-xs font-semibold flex items-center gap-1 hover:bg-emerald-500 hover:text-stone-950 transition-colors no-underline"
+            className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0 no-underline"
+            title={`WhatsApp Devotee: ${record.phone}`}
+            aria-label={`WhatsApp Devotee ${record.phone}`}
           >
-            <MessageCircle className="w-3 h-3" />
-            <span>WhatsApp</span>
+            <MessageCircle className="w-3.5 h-3.5" />
           </a>
 
           {/* Delete Enquiry */}
@@ -983,9 +1207,6 @@ function EnquiryViewModal({
               <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono text-xs font-bold">
                 {enquiry.enquiryNumber}
               </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
-                Live DB
-              </span>
             </div>
             <p className="text-xs text-stone-400">
               Received on {enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleString('en-IN') : 'Recent'}
@@ -1033,9 +1254,11 @@ function EnquiryViewModal({
             <div className="p-3 rounded-xl bg-black/40 border border-amber-500/15 space-y-1">
               <span className="text-[10px] text-stone-400 uppercase tracking-wider font-mono">Pooja Requested</span>
               <div className="font-bold text-amber-200">{enquiry.poojaRequested || enquiry.subject || 'General Consultation'}</div>
-              <div className="text-stone-400 text-[11px]">
-                Preferred Date: <span className="text-stone-200">{enquiry.preferredDate || 'Flexible'}</span>
-              </div>
+              {enquiry.preferredDate && (
+                <div className="text-stone-400 text-[11px]">
+                  Preferred Date: <span className="text-stone-200">{enquiry.preferredDate}</span>
+                </div>
+              )}
             </div>
 
             <div className="p-3 rounded-xl bg-black/40 border border-amber-500/15 space-y-1">
@@ -1125,20 +1348,22 @@ function EnquiryViewModal({
           <div className="flex items-center gap-2">
             <a
               href={`tel:${enquiry.phone}`}
-              className="px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-400/30 text-xs font-semibold flex items-center gap-1.5 hover:bg-amber-500 hover:text-stone-950 transition-colors no-underline"
+              className="p-2 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-400/30 hover:bg-amber-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0 no-underline"
+              title={`Call Devotee: ${enquiry.phone}`}
+              aria-label={`Call Devotee ${enquiry.phone}`}
             >
-              <Phone className="w-3.5 h-3.5" />
-              <span>Call Devotee</span>
+              <Phone className="w-4 h-4" />
             </a>
 
             <a
               href={`https://wa.me/${enquiry.phone.replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar%20${encodeURIComponent(enquiry.name)},%20regarding%20your%20inquiry%20for%20${encodeURIComponent(enquiry.poojaRequested || 'Pooja')}.`}
               target="_blank"
               rel="noreferrer"
-              className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-500 hover:text-stone-950 transition-colors no-underline"
+              className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0 no-underline"
+              title={`WhatsApp Devotee: ${enquiry.phone}`}
+              aria-label={`WhatsApp Devotee ${enquiry.phone}`}
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>WhatsApp</span>
+              <MessageCircle className="w-4 h-4" />
             </a>
 
             <button
@@ -1160,19 +1385,35 @@ function PaymentsModule({
   bookings,
   onSelectBookingForQR,
   onBackToDashboard,
+  onRefresh,
 }: {
   bookings: Booking[];
   onSelectBookingForQR: (b: Booking) => void;
   onBackToDashboard: () => void;
+  onRefresh?: () => void;
 }) {
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'VERIFIED' | 'REJECTED'>('ALL');
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(0);
   const pageSize = 10;
   const [showManageUpiModal, setShowManageUpiModal] = useState(false);
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null);
   const [templeUpi, setTempleUpi] = useState<TempleUpiConfig>(getTempleUpiConfig());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
 
   useEffect(() => {
     const handleUpiUpdate = (e: any) => {
@@ -1191,6 +1432,9 @@ function PaymentsModule({
     if (filter === 'PENDING' && b.qrStatus !== 'pending_verification') return false;
     if (filter === 'VERIFIED' && b.qrStatus !== 'verified') return false;
     if (filter === 'REJECTED' && b.qrStatus !== 'rejected') return false;
+    if (fromDate || toDate) {
+      if (!matchDateFilter(b.createdAt || b.bookingDate, fromDate, toDate)) return false;
+    }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     const name = String(b.devoteeName || '').toLowerCase();
@@ -1226,24 +1470,36 @@ function PaymentsModule({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Header Actions */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold font-sanskrit text-amber-100">
-            Payment Receipts & UPI Verification
+            Payment Receipts &amp; UPI Verification
           </h2>
           <p className="text-xs text-stone-400 mt-0.5">
-            Devotee ₹1,000 advance tokens & temple ledger reconciliation
+            Devotee ₹1,000 advance tokens &amp; temple ledger reconciliation
           </p>
         </div>
-        <button
-          onClick={() => setShowManageUpiModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs transition-all shadow-md hover:shadow-amber-500/25 cursor-pointer"
-        >
-          <Settings className="w-4 h-4 text-stone-950" />
-          <span>Update Temple UPI & QR Code</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh payment receipts & bookings ledger"
+            className="p-2.5 rounded-xl bg-[#1A0D0A] border border-amber-500/20 hover:border-amber-400/50 text-stone-300 hover:text-amber-300 transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+            <span className="text-xs font-semibold hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={() => setShowManageUpiModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs transition-all shadow-md hover:shadow-amber-500/25 cursor-pointer"
+          >
+            <Settings className="w-4 h-4 text-stone-950" />
+            <span>Update Temple UPI &amp; QR Code</span>
+          </button>
+        </div>
       </div>
 
       {/* 4 Stat Cards */}
@@ -1259,8 +1515,8 @@ function PaymentsModule({
         <div
           onClick={() => setFilter('PENDING')}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${filter === 'PENDING'
-              ? 'bg-rose-950/40 border-rose-500 shadow-rose-950/30'
-              : 'bg-[#1A0D0A] border-rose-500/30 hover:border-rose-400/60'
+            ? 'bg-rose-950/40 border-rose-500 shadow-rose-950/30'
+            : 'bg-[#1A0D0A] border-rose-500/30 hover:border-rose-400/60'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -1278,8 +1534,8 @@ function PaymentsModule({
         <div
           onClick={() => setFilter('VERIFIED')}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${filter === 'VERIFIED'
-              ? 'bg-emerald-950/40 border-emerald-500 shadow-emerald-950/30'
-              : 'bg-[#1A0D0A] border-emerald-500/30 hover:border-emerald-400/60'
+            ? 'bg-emerald-950/40 border-emerald-500 shadow-emerald-950/30'
+            : 'bg-[#1A0D0A] border-emerald-500/30 hover:border-emerald-400/60'
             }`}
         >
           <div className="text-[11px] text-emerald-300 font-medium">Verified & Confirmed</div>
@@ -1307,58 +1563,78 @@ function PaymentsModule({
         </div>
       </div>
 
-      {/* Filter Chips & Search Bar */}
-      <div className="p-4 rounded-2xl bg-[#1A0D0A] border border-amber-500/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-lg">
-        {/* Search */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            placeholder="Search by devotee name, phone, email, UTR number or ritual..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/60 border border-amber-500/25 text-stone-100 placeholder-stone-500 text-xs focus:outline-none focus:border-amber-400 transition-colors"
-          />
-          {search && (
-            <button
-              onClick={() => {
-                setSearch('');
-                setPage(0);
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+      {/* Filter Bar: Date Filter + Search & Filter Chips */}
+      <div className="space-y-2.5">
+        <DateFilterBar
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={(val) => {
+            setFromDate(val);
+            setPage(0);
+          }}
+          onToDateChange={(val) => {
+            setToDate(val);
+            setPage(0);
+          }}
+          onClear={() => {
+            setFromDate('');
+            setToDate('');
+            setPage(0);
+          }}
+        />
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-          {(
-            [
-              { key: 'ALL', label: `All Receipts (${bookings.length})` },
-              { key: 'PENDING', label: `Pending Review (${pendingCount})`, badge: pendingCount > 0 },
-              { key: 'VERIFIED', label: `Verified (${verifiedCount})` },
-              { key: 'REJECTED', label: `Rejected (${rejectedCount})` },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.key}
-              onClick={() => {
-                setFilter(item.key);
+        <div className="p-4 rounded-2xl bg-[#1A0D0A] border border-amber-500/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-lg">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
                 setPage(0);
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${filter === item.key
+              placeholder="Search by devotee name, phone, email, UTR number or ritual..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/60 border border-amber-500/25 text-stone-100 placeholder-stone-500 text-xs focus:outline-none focus:border-amber-400 transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setPage(0);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pb-1 md:pb-0">
+            {(
+              [
+                { key: 'ALL', label: `All Receipts (${filteredBookings.length})` },
+                { key: 'PENDING', label: `Pending Review (${pendingCount})`, badge: pendingCount > 0 },
+                { key: 'VERIFIED', label: `Verified (${verifiedCount})` },
+                { key: 'REJECTED', label: `Rejected (${rejectedCount})` },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.key}
+                onClick={() => {
+                  setFilter(item.key);
+                  setPage(0);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${filter === item.key
                   ? 'bg-amber-500 text-stone-950 border-amber-400 shadow'
                   : 'bg-black/40 text-stone-300 border-amber-500/20 hover:border-amber-400/50'
-                }`}
-            >
-              {item.label}
-            </button>
-          ))}
+                  }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1395,14 +1671,21 @@ function PaymentsModule({
             const isVerified = b.qrStatus === 'verified';
             const isRejected = b.qrStatus === 'rejected';
 
+            const devoteeResidentialAddress =
+              b.devoteeAddress?.trim() ||
+              (b as any).yajmanAddress?.trim() ||
+              (b as any).address?.trim() ||
+              (b.city ? (b.state ? `${b.city}, ${b.state}` : b.city) : '') ||
+              'Address not available';
+
             return (
               <div
                 key={b.id}
                 className={`p-5 rounded-3xl bg-[#1A0D0A] border transition-all shadow-xl hover:border-amber-400/50 ${isPending
-                    ? 'border-amber-500/35 bg-gradient-to-br from-[#1F0E09] to-[#140705]'
-                    : isVerified
-                      ? 'border-emerald-500/30 bg-gradient-to-br from-[#121A13] to-[#0A100B]'
-                      : 'border-rose-500/30 bg-gradient-to-br from-[#1F0A0A] to-[#120505]'
+                  ? 'border-amber-500/35 bg-gradient-to-br from-[#1F0E09] to-[#140705]'
+                  : isVerified
+                    ? 'border-emerald-500/30 bg-gradient-to-br from-[#121A13] to-[#0A100B]'
+                    : 'border-rose-500/30 bg-gradient-to-br from-[#1F0A0A] to-[#120505]'
                   }`}
               >
                 {/* Top Row: Devotee & Status */}
@@ -1423,13 +1706,13 @@ function PaymentsModule({
                   </div>
 
                   {/* Status Badge */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span
-                      className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold ${isPending
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
-                          : isVerified
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      className={`w-fit inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold whitespace-nowrap shrink-0 ${isPending
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                        : isVerified
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                         }`}
                     >
                       {isPending ? (
@@ -1451,7 +1734,7 @@ function PaymentsModule({
                     </span>
 
                     {b.emailSent && (
-                      <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 font-medium">
+                      <span className="w-fit inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 font-medium whitespace-nowrap shrink-0">
                         <Mail className="w-3 h-3 text-blue-400" />
                         <span>Email Sent</span>
                       </span>
@@ -1465,7 +1748,7 @@ function PaymentsModule({
                   <div className="md:col-span-8 space-y-3">
                     <div className="flex items-start gap-2">
                       <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="text-sm font-bold text-amber-200">
                           {b.poojaType}
                         </div>
@@ -1479,11 +1762,27 @@ function PaymentsModule({
                             <Clock className="w-3.5 h-3.5 text-stone-400" />
                             {b.time}
                           </span>
-                          <span className="text-stone-500">•</span>
-                          <span className="flex items-center gap-1 text-stone-400">
-                            <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                            {b.location}
-                          </span>
+                        </div>
+
+                        {/* Customer / Yajman Address */}
+                        <div className="mt-2.5 p-2.5 rounded-xl bg-black/45 border border-amber-500/20 text-xs">
+                          <div className="flex items-start gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                            <div className="leading-tight">
+                              <span className="text-[10px] text-amber-400 font-mono uppercase font-bold tracking-wide">
+                                Client Residential Address:
+                              </span>{' '}
+                              <span
+                                className={
+                                  devoteeResidentialAddress === 'Address not available'
+                                    ? 'text-stone-500 italic'
+                                    : 'text-stone-200 font-medium'
+                                }
+                              >
+                                {devoteeResidentialAddress}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1607,7 +1906,16 @@ function PaymentsModule({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`tel:${b.phone.replace(/\s+/g, '')}`}
+                      className="p-2 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-400/30 hover:bg-amber-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0"
+                      title={`Call Devotee: ${b.phone}`}
+                      aria-label={`Call Devotee ${b.phone}`}
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+
                     <a
                       href={`https://wa.me/${b.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
                         isVerified
@@ -1616,17 +1924,18 @@ function PaymentsModule({
                       )}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-500 hover:text-stone-950 transition-colors"
+                      className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0"
+                      title={`WhatsApp Devotee: ${b.phone}`}
+                      aria-label={`WhatsApp Devotee ${b.phone}`}
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
-                      <span>WhatsApp</span>
                     </a>
 
                     <button
                       onClick={() => onSelectBookingForQR(b)}
                       className={`px-4 py-1.5 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-1.5 ${isPending
-                          ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 text-stone-950'
-                          : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-400/30'
+                        ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 text-stone-950'
+                        : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-400/30'
                         }`}
                     >
                       <QrCode className="w-3.5 h-3.5" />
@@ -1640,9 +1949,9 @@ function PaymentsModule({
         )}
       </div>
 
-      {/* ─── Server-Side Style Pagination Bar (10 Records / Page - Fixed / Sticky to Bottom) ─── */}
+      {/* ─── Server-Side Style Pagination Bar (10 Records / Page - Fixed Docked to Bottom & Edges) ─── */}
       {totalElements > 0 && (
-        <div className="sticky bottom-0 z-20 mt-auto flex flex-col sm:flex-row items-center justify-between gap-3 p-3 sm:px-4 rounded-2xl bg-[#140805]/95 backdrop-blur-md border border-amber-500/30 shadow-2xl text-xs">
+        <div className="fixed bottom-14 lg:bottom-0 left-0 lg:left-64 right-0 z-30 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3 bg-[#120705]/95 backdrop-blur-xl border-t border-amber-500/30 shadow-[0_-8px_25px_rgba(0,0,0,0.7)] text-xs">
           <div className="text-stone-400 font-mono text-[11px]">
             Showing <span className="text-amber-300 font-bold">{startRecord}</span> to{' '}
             <span className="text-amber-300 font-bold">{endRecord}</span> of{' '}
@@ -1672,11 +1981,10 @@ function PaymentsModule({
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
-                    p === page
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
-                      : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
-                  }`}
+                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${p === page
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
+                    : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+                    }`}
                 >
                   {p + 1}
                 </button>
@@ -1895,9 +2203,6 @@ function ManageTempleUPIModal({
             <div>
               <div className="text-[11px] text-amber-300 font-mono tracking-wider uppercase font-semibold flex items-center gap-2">
                 <span>Official Temple Settlement</span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[9px]">
-                  {isCustomized ? 'Custom QR Active' : 'Default Hereditary QR'}
-                </span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-amber-100 font-sanskrit leading-tight mt-0.5">
                 Update Temple UPI & QR Code · अधिकृत UPI व्यवस्थापन
@@ -2143,7 +2448,7 @@ function exportBookingsToCSV(bookings: Booking[]) {
     'Time Slot',
     'Location',
     'Members',
-    'Advance Token',
+    'Advance Paid (INR)',
     'Payment Status',
     'UTR Number',
     'Payment App',
@@ -2162,7 +2467,7 @@ function exportBookingsToCSV(bookings: Booking[]) {
     `"${(b.time || '').replace(/"/g, '""')}"`,
     `"${(b.location || '').replace(/"/g, '""')}"`,
     `"${b.familyMembersCount || 1}"`,
-    `"₹${b.advanceAmount || 1000}"`,
+    `"${b.advanceAmount || 1000}"`,
     `"${(b.qrStatus || 'pending_verification').replace(/"/g, '""')}"`,
     `"${(b.utrNumber || '').replace(/"/g, '""')}"`,
     `"${(b.paymentApp || '').replace(/"/g, '""')}"`,
@@ -2214,7 +2519,7 @@ function exportBookingsToExcel(bookings: Booking[]) {
             <th>Scheduled Date</th>
             <th>Time Slot</th>
             <th>Location</th>
-            <th>Advance Token</th>
+            <th>Advance Paid (INR)</th>
             <th>Status</th>
             <th>UTR Number</th>
             <th>Payment App</th>
@@ -2236,7 +2541,7 @@ function exportBookingsToExcel(bookings: Booking[]) {
               <td>${b.date || ''}</td>
               <td>${b.time || ''}</td>
               <td>${b.location || ''}</td>
-              <td>₹${b.advanceAmount || 1000}</td>
+              <td class="num">${b.advanceAmount || 1000}</td>
               <td class="${b.qrStatus === 'verified' ? 'status-verified' : b.qrStatus === 'rejected' ? 'status-rejected' : 'status-pending'}">
                 ${b.qrStatus === 'verified' ? 'Verified' : b.qrStatus === 'rejected' ? 'Rejected' : 'Under Verification'}
               </td>
@@ -2252,7 +2557,7 @@ function exportBookingsToExcel(bookings: Booking[]) {
     </html>
   `;
 
-  const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const blob = new Blob(['\uFEFF' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2315,7 +2620,7 @@ function exportBookingsToPDF(bookings: Booking[]) {
             <th>Gotra & City</th>
             <th>Ritual / Pooja</th>
             <th>Date & Time</th>
-            <th>Advance Token</th>
+            <th>Advance Paid (INR)</th>
             <th>Status</th>
             <th>UTR / Payment</th>
           </tr>
@@ -2331,7 +2636,7 @@ function exportBookingsToPDF(bookings: Booking[]) {
               <td>${b.gotra || ''} · ${b.city || ''}</td>
               <td>${b.poojaType || ''}</td>
               <td>${b.date || ''} (${b.time || ''})</td>
-              <td>₹${b.advanceAmount || 1000}</td>
+              <td>INR ${(b.advanceAmount || 1000).toLocaleString('en-IN')}</td>
               <td>
                 <span class="badge ${b.qrStatus === 'verified' ? 'badge-verified' : b.qrStatus === 'rejected' ? 'badge-rejected' : 'badge-pending'}">
                   ${b.qrStatus === 'verified' ? 'Verified' : b.qrStatus === 'rejected' ? 'Rejected' : 'Under Review'}
@@ -2560,12 +2865,10 @@ function printSanctifiedBookingReceipt(b: Booking) {
               <td class="td-label">City & State of Residence:</td>
               <td class="td-val">${b.city || 'Trimbakeshwar'}, ${b.state || 'Maharashtra'}</td>
             </tr>
-            ${b.devoteeAddress ? `
             <tr>
-              <td class="td-label">Devotee Residential Address:</td>
-              <td class="td-val">${b.devoteeAddress}</td>
+              <td class="td-label">Client Residential Address:</td>
+              <td class="td-val">${b.devoteeAddress || (b as any).yajmanAddress || (b as any).address || 'Address not available'}</td>
             </tr>
-            ` : ''}
             <tr>
               <td class="td-label">Family Members Attending:</td>
               <td class="td-val">${b.familyMembersCount || 2} Persons Attending</td>
@@ -2585,10 +2888,6 @@ function printSanctifiedBookingReceipt(b: Booking) {
             <tr>
               <td class="td-label">Muhurat Time Slot:</td>
               <td class="td-val">${b.time}</td>
-            </tr>
-            <tr>
-              <td class="td-label">Pooja Performing Venue / Address:</td>
-              <td class="td-val">${b.poojaAddress || b.location || 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar'}</td>
             </tr>
             <tr>
               <td class="td-label">Advance Token Deposit:</td>
@@ -2676,10 +2975,10 @@ function BookingPassModal({
           <div className="relative z-1 p-5 sm:p-6 space-y-5">
             {/* Status Alert Banner */}
             <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${isVerified
-                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
-                : isPending
-                  ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
-                  : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+              : isPending
+                ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
               }`}>
               <div className="flex items-center gap-2.5">
                 {isVerified ? (
@@ -2729,12 +3028,12 @@ function BookingPassModal({
                 <div className="text-xs text-stone-400">
                   Native City: {booking.city || 'Trimbakeshwar'}{booking.state ? `, ${booking.state}` : ''}
                 </div>
-                {booking.devoteeAddress && (
-                  <div className="text-xs text-stone-400 pt-1 border-t border-stone-800">
-                    <span className="text-[10px] text-stone-500 block uppercase">Client Residential Address:</span>
-                    <span className="text-stone-300">{booking.devoteeAddress}</span>
-                  </div>
-                )}
+                <div className="text-xs text-stone-400 pt-1 border-t border-stone-800">
+                  <span className="text-[10px] text-amber-400/90 font-mono uppercase font-bold block">Client Residential Address:</span>
+                  <span className={booking.devoteeAddress || (booking as any).yajmanAddress || (booking as any).address ? 'text-stone-300 font-medium' : 'text-stone-500 italic'}>
+                    {booking.devoteeAddress || (booking as any).yajmanAddress || (booking as any).address || 'Address not available'}
+                  </span>
+                </div>
               </div>
 
               {/* Ritual & Muhurat */}
@@ -2748,13 +3047,6 @@ function BookingPassModal({
                 <div className="text-xs text-stone-300 font-medium flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>Muhurat Slot: <strong>{booking.time}</strong></span>
-                </div>
-                <div className="text-xs text-stone-300 flex items-start gap-1.5 pt-1 border-t border-stone-800">
-                  <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[10px] text-stone-400 block uppercase">Pooja Performing Venue / Address:</span>
-                    <span className="text-stone-200">{booking.poojaAddress || booking.location || 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar'}</span>
-                  </div>
                 </div>
               </div>
 
@@ -2887,13 +3179,22 @@ function BookingPassModal({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <a
+                  href={`tel:${String(booking.phone || '').replace(/\s+/g, '')}`}
+                  className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0"
+                  title={`Call Devotee: ${booking.phone}`}
+                  aria-label={`Call Devotee ${booking.phone}`}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                </a>
+                <a
                   href={`https://wa.me/${String(booking.phone || '').replace(/[^0-9]/g, '')}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1 hover:bg-emerald-500 hover:text-stone-950 transition-colors"
+                  className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500 hover:text-stone-950 transition-colors flex items-center justify-center shrink-0"
+                  title={`WhatsApp Devotee: ${booking.phone}`}
+                  aria-label={`WhatsApp Devotee ${booking.phone}`}
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
-                  <span>WhatsApp</span>
                 </a>
                 <button
                   onClick={() => printSanctifiedBookingReceipt(booking)}
@@ -2989,24 +3290,36 @@ function BookingsModule({
   onSelectBookingForQR: (b: Booking) => void;
   onOpenNewBooking: () => void;
 }) {
+  const API_BASE_URL =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) ||
+    '/api';
+
   const [page, setPage] = useState(0);
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalElements, setTotalElements] = useState(0);
+  const [totalElements, setTotalElements] = useState(() => (initialBookings || []).length);
 
   const [search, setSearch] = useState('');
   const [inputVal, setInputVal] = useState('');
   const [qrStatusFilter, setQrStatusFilter] = useState<'' | 'pending_verification' | 'verified' | 'rejected'>('');
   const [poojaFilter, setPoojaFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    pendingCount: 0,
-    verifiedCount: 0,
-    rejectedCount: 0,
-    verifiedRevenue: 0,
+  const [bookings, setBookings] = useState<Booking[]>(() => initialBookings || []);
+  const [stats, setStats] = useState(() => {
+    const list = initialBookings || [];
+    const pending = list.filter((b) => b.qrStatus === 'pending_verification').length;
+    const verified = list.filter((b) => b.qrStatus === 'verified').length;
+    const rejected = list.filter((b) => b.qrStatus === 'rejected').length;
+    return {
+      total: list.length,
+      pendingCount: pending,
+      verifiedCount: verified,
+      rejectedCount: rejected,
+      verifiedRevenue: verified * 1000,
+    };
   });
 
   const [loading, setLoading] = useState(false);
@@ -3019,7 +3332,7 @@ function BookingsModule({
   // Fetch Stats from Spring Boot /api/bookings/stats
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/bookings/stats');
+      const res = await fetch(`${API_BASE_URL}/bookings/stats`);
       if (res.ok) {
         const data = await res.json();
         setStats({
@@ -3052,7 +3365,7 @@ function BookingsModule({
 
   // Fetch paginated bookings from Spring Boot /api/bookings
   const loadPage = useCallback(async (params: any) => {
-    setLoading(true);
+    if (bookings.length === 0) setLoading(true);
     setError(null);
     try {
       const query = new URLSearchParams({
@@ -3062,9 +3375,11 @@ function BookingsModule({
         sortDir: params.sortDir ?? 'desc',
         ...(params.search ? { search: params.search } : {}),
         ...(params.status ? { status: params.status } : {}),
+        ...(params.fromDate ? { fromDate: params.fromDate } : {}),
+        ...(params.toDate ? { toDate: params.toDate } : {}),
       });
 
-      const response = await fetch(`http://localhost:8080/api/bookings?${query}`, {
+      const response = await fetch(`${API_BASE_URL}/bookings?${query}`, {
         headers: { Accept: 'application/json' },
       });
 
@@ -3086,7 +3401,7 @@ function BookingsModule({
           city: b.city || 'Trimbakeshwar',
           state: b.state || 'Maharashtra',
           devoteeAddress: b.devoteeAddress || '',
-          poojaAddress: b.poojaAddress || b.location || 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar',
+          poojaAddress: b.poojaAddress || b.location || '',
           familyMembersCount: b.familyMembersCount || 1,
           advanceAmount: b.advanceAmount || 1000,
           totalPoojaDakshina: 'As per Vedic Scriptures',
@@ -3098,6 +3413,7 @@ function BookingsModule({
           screenshotTimestamp: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '',
           emailSent: b.emailSent,
           notes: b.notes || b.adminNotes,
+          createdAt: b.createdAt,
         }));
 
         setBookings(content);
@@ -3120,6 +3436,9 @@ function BookingsModule({
       const filtered = clean.filter((b: Booking) => {
         if (params.status && b.qrStatus !== params.status) return false;
         if (params.pooja && !b.poojaType?.toLowerCase().includes(params.pooja.toLowerCase())) return false;
+        if (params.fromDate || params.toDate) {
+          if (!matchDateFilter(b.createdAt || b.date, params.fromDate, params.toDate)) return false;
+        }
         if (!q) return true;
         return (
           b.devoteeName?.toLowerCase().includes(q) ||
@@ -3153,8 +3472,8 @@ function BookingsModule({
 
   useEffect(() => {
     loadStats();
-    loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter, pooja: poojaFilter });
-  }, [page, pageSize, sortDir, search, qrStatusFilter, poojaFilter, loadPage, loadStats]);
+    loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter, pooja: poojaFilter, fromDate, toDate });
+  }, [page, pageSize, sortDir, search, qrStatusFilter, poojaFilter, fromDate, toDate, loadPage, loadStats]);
 
   const handleSearchInput = (val: string) => {
     setInputVal(val);
@@ -3169,11 +3488,11 @@ function BookingsModule({
   useEffect(() => {
     const onNew = (e: Event) => {
       loadStats();
-      loadPage({ page: 0, size: pageSize, sortDir, search, status: qrStatusFilter });
+      loadPage({ page: 0, size: pageSize, sortDir, search, status: qrStatusFilter, fromDate, toDate });
     };
     const onUpdated = () => {
       loadStats();
-      loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter });
+      loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter, fromDate, toDate });
     };
     window.addEventListener('trimbak_booking_submitted', onNew);
     window.addEventListener('trimbak_booking_updated', onUpdated);
@@ -3181,7 +3500,7 @@ function BookingsModule({
       window.removeEventListener('trimbak_booking_submitted', onNew);
       window.removeEventListener('trimbak_booking_updated', onUpdated);
     };
-  }, [loadPage, loadStats, page, pageSize, qrStatusFilter, search, sortDir]);
+  }, [loadPage, loadStats, page, pageSize, qrStatusFilter, search, sortDir, fromDate, toDate]);
 
   // Handle Export
   const handleExport = async (format: 'csv' | 'excel' | 'pdf') => {
@@ -3196,8 +3515,10 @@ function BookingsModule({
           sortDir,
           ...(search ? { search } : {}),
           ...(qrStatusFilter ? { status: qrStatusFilter } : {}),
+          ...(fromDate ? { fromDate } : {}),
+          ...(toDate ? { toDate } : {}),
         });
-        const res = await fetch(`http://localhost:8080/api/bookings?${query}`);
+        const res = await fetch(`${API_BASE_URL}/bookings?${query}`);
         if (res.ok) {
           const pData = await res.json();
           if (pData.content && pData.content.length > 0) {
@@ -3227,15 +3548,15 @@ function BookingsModule({
   const endRecord = Math.min((page + 1) * pageSize, totalElements);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
       {/* ─── 4 Stat Cards Row ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Total Bookings */}
         <div
           onClick={() => { setQrStatusFilter(''); setPage(0); }}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${qrStatusFilter === ''
-              ? 'bg-[#1F0E09] border-amber-500/50 shadow-amber-950/30'
-              : 'bg-[#1A0D0A] border-amber-500/20 hover:border-amber-400/50'
+            ? 'bg-[#1F0E09] border-amber-500/50 shadow-amber-950/30'
+            : 'bg-[#1A0D0A] border-amber-500/20 hover:border-amber-400/50'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -3255,8 +3576,8 @@ function BookingsModule({
             setPage(0);
           }}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${qrStatusFilter === 'pending_verification'
-              ? 'bg-rose-950/50 border-rose-500 shadow-rose-950/40'
-              : 'bg-[#1A0D0A] border-rose-500/30 hover:border-rose-400/60'
+            ? 'bg-rose-950/50 border-rose-500 shadow-rose-950/40'
+            : 'bg-[#1A0D0A] border-rose-500/30 hover:border-rose-400/60'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -3276,8 +3597,8 @@ function BookingsModule({
             setPage(0);
           }}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${qrStatusFilter === 'verified'
-              ? 'bg-emerald-950/50 border-emerald-500 shadow-emerald-950/40'
-              : 'bg-[#1A0D0A] border-emerald-500/30 hover:border-emerald-400/60'
+            ? 'bg-emerald-950/50 border-emerald-500 shadow-emerald-950/40'
+            : 'bg-[#1A0D0A] border-emerald-500/30 hover:border-emerald-400/60'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -3299,8 +3620,8 @@ function BookingsModule({
             setPage(0);
           }}
           className={`p-4 rounded-2xl border shadow-md cursor-pointer transition-all ${qrStatusFilter === 'rejected'
-              ? 'bg-stone-800 border-stone-400 shadow-stone-900/50'
-              : 'bg-[#1A0D0A] border-stone-600/30 hover:border-stone-500/60'
+            ? 'bg-stone-800 border-stone-400 shadow-stone-900/50'
+            : 'bg-[#1A0D0A] border-stone-600/30 hover:border-stone-500/60'
             }`}
         >
           <div className="flex items-center justify-between">
@@ -3322,17 +3643,13 @@ function BookingsModule({
             <h2 className="text-base font-bold text-amber-100 font-sanskrit flex items-center gap-2">
               <span>Pooja Bookings Ledger</span>
             </h2>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono flex items-center gap-1">
-              <Database className="w-3 h-3" />
-              <span>Live DB</span>
-            </span>
             <span className="text-xs text-amber-300 font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
               {totalElements} Total · {stats.pendingCount} Under Review
             </span>
             <button
               onClick={() => {
                 loadStats();
-                loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter, pooja: poojaFilter });
+                loadPage({ page, size: pageSize, sortDir, search, status: qrStatusFilter, pooja: poojaFilter, fromDate, toDate });
               }}
               disabled={loading}
               className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-amber-300 border border-stone-700 transition-colors disabled:opacity-50"
@@ -3387,7 +3704,26 @@ function BookingsModule({
           </div>
         </div>
 
-        {/* Row 2: Search, Status Filter, Pooja Filter & Sort */}
+        {/* Row 2: FROM - TO Date Filter Bar */}
+        <DateFilterBar
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={(val) => {
+            setFromDate(val);
+            setPage(0);
+          }}
+          onToDateChange={(val) => {
+            setToDate(val);
+            setPage(0);
+          }}
+          onClear={() => {
+            setFromDate('');
+            setToDate('');
+            setPage(0);
+          }}
+        />
+
+        {/* Row 3: Search, Status Filter, Pooja Filter & Sort */}
         <div className="flex flex-col md:flex-row gap-2">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -3528,14 +3864,21 @@ function BookingsModule({
           bookings.map((b) => {
             const isPending = b.qrStatus === 'pending_verification';
             const isVerified = b.qrStatus === 'verified';
+            const devoteeResidentialAddress =
+              b.devoteeAddress?.trim() ||
+              (b as any).yajmanAddress?.trim() ||
+              (b as any).address?.trim() ||
+              (b.city ? (b.state ? `${b.city}, ${b.state}` : b.city) : '') ||
+              'Address not available';
+
             return (
               <div
                 key={b.id}
                 className={`p-4 rounded-2xl border transition-all hover:border-amber-400/40 ${isPending
-                    ? 'bg-gradient-to-br from-[#1F0E09] to-[#140705] border-amber-500/35'
-                    : isVerified
-                      ? 'bg-gradient-to-br from-[#0E1A0F] to-[#0A100B] border-emerald-500/30'
-                      : 'bg-black/40 border-rose-500/30'
+                  ? 'bg-gradient-to-br from-[#1F0E09] to-[#140705] border-amber-500/35'
+                  : isVerified
+                    ? 'bg-gradient-to-br from-[#0E1A0F] to-[#0A100B] border-emerald-500/30'
+                    : 'bg-black/40 border-rose-500/30'
                   }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3547,7 +3890,7 @@ function BookingsModule({
                       <span className="text-xs text-amber-300">({b.gotra || 'Vedic Gotra'})</span>
                       <span className="text-xs text-stone-400">• {b.city || 'Trimbakeshwar'}</span>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-amber-500/20 text-stone-300">
-                        {b.id}
+                        Ref: {b.id}
                       </span>
                     </div>
 
@@ -3555,12 +3898,28 @@ function BookingsModule({
                       {b.poojaType} · <span className="text-amber-300/90">{b.date}</span> ({b.time})
                     </div>
 
+                    {/* Customer / Yajman Address */}
+                    <div className="p-2.5 rounded-xl bg-black/45 border border-amber-500/20 text-xs">
+                      <div className="flex items-start gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="leading-tight">
+                          <span className="text-[10px] text-amber-400 font-mono uppercase font-bold tracking-wide">
+                            Client Residential Address:
+                          </span>{' '}
+                          <span
+                            className={
+                              devoteeResidentialAddress === 'Address not available'
+                                ? 'text-stone-500 italic'
+                                : 'text-stone-200 font-medium'
+                            }
+                          >
+                            {devoteeResidentialAddress}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="text-[11px] text-stone-400 flex items-center gap-2 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-amber-400" />
-                        <span>{b.location}</span>
-                      </span>
-                      <span>•</span>
                       <span>
                         <a href={`tel:${b.phone}`} className="text-amber-300 hover:underline">
                           {b.phone}
@@ -3576,11 +3935,11 @@ function BookingsModule({
 
                     <div className="flex items-center gap-2 pt-0.5 flex-wrap">
                       <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${isPending
-                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 flex items-center gap-1'
-                            : isVerified
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-1'
-                              : 'bg-stone-800 text-stone-300 border-stone-700'
+                        className={`w-fit inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full border font-medium whitespace-nowrap shrink-0 ${isPending
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          : isVerified
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : 'bg-stone-800 text-stone-300 border-stone-700'
                           }`}
                       >
                         {isPending && <Clock className="w-2.5 h-2.5 animate-pulse" />}
@@ -3593,13 +3952,13 @@ function BookingsModule({
                       </span>
 
                       {b.utrNumber && (
-                        <span className="text-[10px] text-stone-400 font-mono bg-stone-900/80 px-2 py-0.5 rounded border border-amber-500/15">
+                        <span className="w-fit inline-flex items-center shrink-0 whitespace-nowrap text-[10px] text-stone-400 font-mono bg-stone-900/80 px-2 py-0.5 rounded border border-amber-500/15">
                           UTR: {b.utrNumber}
                         </span>
                       )}
 
                       {b.emailSent && (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                        <span className="w-fit inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 whitespace-nowrap shrink-0">
                           <Mail className="w-2.5 h-2.5" />
                           <span>Email Sent</span>
                         </span>
@@ -3621,8 +3980,8 @@ function BookingsModule({
                     <button
                       onClick={() => onSelectBookingForQR(b)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all ${isPending
-                          ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow hover:from-amber-300 hover:to-amber-400'
-                          : 'bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700'
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow hover:from-amber-300 hover:to-amber-400'
+                        : 'bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700'
                         }`}
                       title={isPending ? 'Verify Devotee Token Receipt' : 'Review QR Verification'}
                     >
@@ -3655,13 +4014,13 @@ function BookingsModule({
         )}
       </div>
 
-      {/* ─── Sticky Server-Side Pagination Bar (20 Records / Page) ─── */}
+      {/* ─── Server-Side Style Pagination Bar ({pageSize} Records / Page - Fixed Docked to Bottom & Edges) ─── */}
       {totalElements > 0 && (
-        <div className="sticky bottom-0 z-20 mt-auto flex flex-col sm:flex-row items-center justify-between gap-3 p-3 sm:px-4 rounded-2xl bg-[#140805]/95 backdrop-blur-md border border-amber-500/30 shadow-2xl text-xs">
+        <div className="fixed bottom-14 lg:bottom-0 left-0 lg:left-64 right-0 z-30 flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-3 bg-[#120705]/95 backdrop-blur-xl border-t border-amber-500/30 shadow-[0_-8px_25px_rgba(0,0,0,0.7)] text-xs">
           <div className="text-stone-400 font-mono text-[11px]">
             Showing <span className="text-amber-300 font-bold">{startRecord}</span> to{' '}
             <span className="text-amber-300 font-bold">{endRecord}</span> of{' '}
-            <span className="text-stone-200 font-bold">{totalElements}</span> bookings (20 per page)
+            <span className="text-stone-200 font-bold">{totalElements}</span> entries ({pageSize} per page)
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -3673,11 +4032,12 @@ function BookingsModule({
             />
             <PageBtn
               icon={<ChevronLeft className="w-3.5 h-3.5" />}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0 || loading}
               title="Previous page"
             />
 
+            {/* Page number buttons */}
             {Array.from({ length: Math.min(5, Math.max(1, totalPages)) }, (_, i) => {
               const start = Math.max(0, Math.min(page - 2, Math.max(0, totalPages - 5)));
               const p = start + i;
@@ -3687,9 +4047,9 @@ function BookingsModule({
                   key={p}
                   onClick={() => setPage(p)}
                   disabled={loading}
-                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors ${p === page
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
-                      : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+                  className={`w-7 h-7 rounded-lg text-xs font-mono transition-colors cursor-pointer ${p === page
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-bold shadow'
+                    : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
                     }`}
                 >
                   {p + 1}
@@ -3699,7 +4059,7 @@ function BookingsModule({
 
             <PageBtn
               icon={<ChevronRight className="w-3.5 h-3.5" />}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1 || loading}
               title="Next page"
             />
@@ -3736,10 +4096,17 @@ export const SubmodulePlaceholder: React.FC<SubmodulePlaceholderProps> = ({
   onSelectBookingForQR,
   onLeadContacted,
   onRefreshLeads,
+  onRefreshBookings,
+  notifications,
+  onNavigateTab,
+  onMarkAllAsRead,
+  onMarkAsRead,
+  onDeleteNotification,
+  onClearAllNotifications,
 }) => {
-  // If activeTab is 'inquiries', render InquiriesModule DIRECTLY!
+  // If activeTab is 'inquiries', render EnquiriesModule DIRECTLY!
   if (activeTab === 'inquiries') {
-    return <InquiriesModule leads={leads} onLeadContacted={onLeadContacted} />;
+    return <EnquiriesModule leads={leads} onLeadContacted={onLeadContacted} />;
   }
 
   // If activeTab is 'payments', render PaymentsModule DIRECTLY!
@@ -3749,6 +4116,7 @@ export const SubmodulePlaceholder: React.FC<SubmodulePlaceholderProps> = ({
         bookings={bookings}
         onSelectBookingForQR={onSelectBookingForQR}
         onBackToDashboard={onBackToDashboard}
+        onRefresh={onRefreshBookings}
       />
     );
   }
@@ -3764,27 +4132,42 @@ export const SubmodulePlaceholder: React.FC<SubmodulePlaceholderProps> = ({
     );
   }
 
-  // Fallback for remaining submodules (gallery, analytics, settings)
+  // Gallery module – fully implemented
+  if (activeTab === 'gallery') {
+    return <AdminGalleryModule />;
+  }
+
+  // Articles & Blogs module – fully implemented
+  if (activeTab === 'articles') {
+    return <AdminArticlesModule />;
+  }
+
+  // Notifications module – real database live alerts
+  if (activeTab === 'notifications') {
+    return (
+      <AdminNotificationsModule
+        bookings={bookings}
+        leads={leads}
+        notifications={notifications || []}
+        onSelectBookingForQR={onSelectBookingForQR}
+        onNavigateTab={onNavigateTab || (() => {})}
+        onMarkAllAsRead={onMarkAllAsRead || (() => {})}
+        onMarkAsRead={onMarkAsRead || (() => {})}
+        onDeleteNotification={onDeleteNotification || (() => {})}
+        onClearAllNotifications={onClearAllNotifications || (() => {})}
+      />
+    );
+  }
+
+  // Fallback for remaining submodules (settings)
   const config = {
-    gallery: {
-      title: 'Dynamic Temple Gallery Management',
-      titleEn: 'Pooja Darshan & Image Uploader',
-      description: 'Upload high-resolution photographs of Kushavarta Kund rituals, Garbhagriha abhishek, and festivals.',
-      icon: ImagePlus,
-    },
-    analytics: {
-      title: 'Financial & Seva Reports',
-      titleEn: 'Audit, Statistics & Inbound Devotee Trends',
-      description: 'Comprehensive financial breakdowns, token ledgers, and ritual distribution analytics.',
-      icon: BarChart3,
-    },
     settings: {
       title: 'Purohit Profile & System Settings',
       titleEn: 'Hereditary Vatandar Profile & Bank QR Settings',
       description: 'Pt. Pravin Shambhu Deshmukh (Desai) official Purohit certificate, contact channels, and UPI settlement accounts.',
       icon: Settings,
     },
-  }[activeTab as Exclude<AdminTab, 'dashboard' | 'inquiries' | 'bookings' | 'payments'>] || {
+  }[activeTab as Exclude<AdminTab, 'dashboard' | 'inquiries' | 'bookings' | 'payments' | 'gallery' | 'articles' | 'notifications'>] || {
     title: 'Module',
     titleEn: 'System Module',
     description: '',

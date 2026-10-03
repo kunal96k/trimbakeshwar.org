@@ -4,12 +4,32 @@ import { SACRED_PLACES } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { MapPin, Sparkles, Navigation, ArrowRight } from 'lucide-react';
 import { TempleIcon } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema } from '../utils/seoData';
 
 export function SacredPlacesPage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Sacred Places', path: '/sacred-places' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Sacred Shrines Around Trimbakeshwar | Kushavarta Kund, Brahmagiri & Gangadwar"
+        description="Explore the sacred tirthas around Trimbakeshwar: holy Kushavarta Kund where River Godavari reappears, Brahmagiri mountain peak, Gangadwar, and Sant Nivruttinath Samadhi."
+        canonicalPath="/sacred-places"
+        keywords={[
+          'Kushavarta Kund Trimbakeshwar',
+          'Brahmagiri mountain trek',
+          'Gangadwar Trimbakeshwar',
+          'Sant Nivruttinath Samadhi Mandir',
+          'Ahilya Sangam Kund',
+        ]}
+        schema={breadcrumbsSchema}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'Sacred Places' }]}
         sanskritMantra="॥ तीर्थक्षेत्र महिमा ॥"

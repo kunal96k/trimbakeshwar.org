@@ -3,12 +3,33 @@ import { InnerPageHero } from '../components/InnerPageHero';
 import { TEMPLE_PRACTICAL_GUIDE, CONTACT_INFO } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { Check, X, ShieldAlert, Phone, Home, HeartHandshake, Info } from 'lucide-react';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema } from '../utils/seoData';
 
 export function TempleGuidePage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple', path: '/temple' },
+    { name: 'Pilgrim Practical Guide', path: '/temple-guide' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Devotee Guidelines & Sanctum Etiquette | Trimbakeshwar Temple Pilgrim Guide"
+        description="Comprehensive pilgrim checklist for visiting Trimbakeshwar: mandatory dress codes, what to bring, Kushavarta snan guidelines, locker rooms, and accommodation."
+        canonicalPath="/temple-guide"
+        keywords={[
+          'Trimbakeshwar pilgrim guide',
+          'Trimbakeshwar dress code rules',
+          'Kushavarta bath guidelines',
+          'Trimbakeshwar rules for devotees',
+          'Trimbakeshwar temple lockers',
+        ]}
+        schema={breadcrumbsSchema}
+      />
       <InnerPageHero
         breadcrumbs={[
           { label: 'Temple', route: '/temple' },

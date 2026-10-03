@@ -37,6 +37,8 @@ import {
   X,
 } from 'lucide-react';
 import { SacredMandala, TrishulIcon, TempleIcon, PranamHandsIcon, VedicScrollIcon, LotusIcon, PanchangIcon, OmSymbol } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getPurohitLocalBusinessSchema, getBreadcrumbSchema } from '../utils/seoData';
 
 function renderAboutValueIcon(id: string) {
   switch (id) {
@@ -109,8 +111,26 @@ export function AboutPage() {
     setOpenFaqIndex(openFaqIndex === index ? null : index);
   };
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'About Us', path: '/about' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20 select-none">
+      <SEO
+        title="About Shri Trimbakeshwar Jyotirlinga Purohit Sanstha | Hereditary Parampara"
+        description="Learn about the 25-generation hereditary Vatandar Purohit custodianship of Shri Kshetra Trimbakeshwar, preserved historical Tamrapatra decrees, and Shukla Yajurveda traditions."
+        canonicalPath="/about"
+        keywords={[
+          'About Trimbakeshwar Purohit',
+          'Vatandar Purohit history',
+          'Tamrapatra Trimbakeshwar',
+          'Peshwa era heritage Trimbak',
+          'Pt Pravin Shambhu Deshmukh lineage',
+        ]}
+        schema={[getPurohitLocalBusinessSchema(), breadcrumbsSchema]}
+      />
       {/* =========================================================================
           HERO SECTION: Cinematic Sanatan Heritage
           ========================================================================= */}
@@ -1024,7 +1044,7 @@ export function AboutPage() {
               </div>
 
               <div>
-                <span className="text-stone-400 block text-[10px] uppercase font-bold">Support & Inquiry Hours</span>
+                <span className="text-stone-400 block text-[10px] uppercase font-bold">Support & Enquiry Hours</span>
                 <div className="flex items-center gap-2 mt-0.5">
                   <Clock className="w-4 h-4 text-[#C56A18] shrink-0" />
                   <span>{ORGANIZATION_DATA.officeHours}</span>

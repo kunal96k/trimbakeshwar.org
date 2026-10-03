@@ -4,12 +4,32 @@ import { useNavigation } from '../context/NavigationContext';
 import { Landmark, Sparkles, MapPin, Clock, ArrowRight, ShieldCheck, History } from 'lucide-react';
 import { TempleIcon } from '../components/Motifs';
 import { AppRoute } from '../types';
+import { SEO } from '../components/SEO';
+import { getPlaceOfWorshipSchema, getBreadcrumbSchema } from '../utils/seoData';
 
 export function TempleOverviewPage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple Overview & History', path: '/temple' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Shri Trimbakeshwar Temple History, Architecture & Sanctum Heritage"
+        description="Explore the historic 18th-century Peshwa-era black basalt Trimbakeshwar Temple in Nashik, Maharashtra. Enshrining the unique three-faced Tridev Jyotirlinga."
+        canonicalPath="/temple"
+        keywords={[
+          'Trimbakeshwar temple architecture',
+          'Trimbakeshwar history',
+          'Nana Saheb Peshwa temple',
+          'Trimbakeshwar basalt mandir',
+          'Brahmagiri foothills temple',
+        ]}
+        schema={[getPlaceOfWorshipSchema(), breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[{ label: 'Temple', route: '/temple' }, { label: 'Overview & History' }]}
         title="Shri Trimbakeshwar Temple"

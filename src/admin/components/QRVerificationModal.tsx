@@ -67,7 +67,6 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
     `• Booking Reference: ${booking.id}\n` +
     `• Ritual / Vidhi: ${booking.poojaType}\n` +
     `• Scheduled Date: ${booking.date} (${booking.time})\n` +
-    `• Venue: Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar\n` +
     `• Devotee: ${booking.devoteeName} (${booking.gotra})\n\n` +
     `Our Hereditary Vatandar Tirth Purohit, Pt. Pravin Shambhu Deshmukh (Desai), will contact you directly on WhatsApp / Phone (+91 ${booking.phone}) 24 hours prior with fasting guidelines (upvaas), traditional dress code (dhoti/kurta for men, saree for women), and exact muhurat sankalp.\n\n` +
     `May Lord Trimbakeshwar Mahadev shower divine grace and blessings upon your family.\n\n` +
@@ -99,8 +98,7 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
         `Respected ${booking.devoteeName} Ji, your advance token payment of ₹${booking.advanceAmount || 1000} (UTR: ${booking.utrNumber || 'Verified'}) has been verified.\n\n` +
         `• *Booking Ref:* ${booking.id}\n` +
         `• *Vidhi:* ${booking.poojaType}\n` +
-        `• *Date & Time:* ${booking.date} (${booking.time})\n` +
-        `• *Venue:* Kushavarta Kund Ghat & Mandir Gate 2\n\n` +
+        `• *Date & Time:* ${booking.date} (${booking.time})\n\n` +
         `Our Guruji Pt. Pravin Shambhu Deshmukh (Desai) will contact you shortly with fasting instructions.\n\n` +
         `Har Har Mahadev!`
     );
@@ -148,22 +146,22 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
           <div className="overflow-y-auto p-4 sm:p-6 space-y-5">
             {/* Status Alert Banner */}
             {booking.qrStatus === 'verified' ? (
-              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 font-medium">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                   <span>Payment Verified. Confirmation email sent to devotee. Ritual slot is confirmed.</span>
                 </span>
-                <span className="font-mono text-[10px] text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                <span className="w-fit inline-flex items-center shrink-0 whitespace-nowrap font-mono text-[10px] text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-full font-bold border border-emerald-500/30">
                   VERIFIED
                 </span>
               </div>
             ) : (
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 font-medium">
                   <Clock className="w-4 h-4 shrink-0 text-amber-400 animate-pulse" />
                   <span>Action Required: Cross-verify credit of ₹1,000 in temple bank ledger before confirming.</span>
                 </span>
-                <span className="font-mono text-[10px] text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+                <span className="w-fit inline-flex items-center shrink-0 whitespace-nowrap font-mono text-[10px] text-amber-400 bg-amber-500/20 px-2.5 py-1 rounded-full font-bold border border-amber-500/30">
                   PENDING REVIEW
                 </span>
               </div>
@@ -180,11 +178,12 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
                 <span className="text-stone-300 text-[11px] block mt-0.5">
                   Attending Family: <strong>{booking.familyMembersCount || 2} Persons</strong>
                 </span>
-                {booking.devoteeAddress && (
-                  <span className="text-stone-400 text-[10px] block mt-1">
-                    Residence: <span className="text-stone-300">{booking.devoteeAddress}</span>
+                <span className="text-stone-400 text-[10px] block mt-1">
+                  <span className="text-amber-400 font-mono font-bold uppercase">Client Residential Address: </span>
+                  <span className={booking.devoteeAddress || (booking as any).yajmanAddress || (booking as any).address ? 'text-stone-300' : 'text-stone-500 italic'}>
+                    {booking.devoteeAddress || (booking as any).yajmanAddress || (booking as any).address || 'Address not available'}
                   </span>
-                )}
+                </span>
                 {booking.email && (
                   <span className="text-stone-300 text-[11px] block mt-1 flex items-center gap-1 truncate">
                     <Mail className="w-3 h-3 text-amber-400 shrink-0" />
@@ -198,9 +197,6 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
                 <span className="text-amber-200 font-semibold">{booking.poojaType}</span>
                 <span className="text-stone-300 text-[11px] block mt-0.5">
                   {booking.date} • {booking.time}
-                </span>
-                <span className="text-stone-400 text-[11px] block mt-1">
-                  Venue: {booking.poojaAddress || booking.location || 'Kushavarta Kund Ghat & Mandir Gate 2'}
                 </span>
                 {booking.assignedGuruji && (
                   <span className="text-amber-400/90 text-[10px] block mt-1">
@@ -329,21 +325,23 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
 
               {/* Devotee Contact Bar */}
               <div className="mt-3 pt-3 border-t border-stone-800 flex items-center justify-between flex-wrap gap-2">
-                <span className="text-[11px] text-stone-400">Devotee Phone: {booking.phone}</span>
-                <div className="flex items-center gap-2">
+                <span className="text-[11px] text-stone-400 font-mono">Devotee Phone: {booking.phone}</span>
+                <div className="flex items-center gap-1.5">
                   <a
                     href={`tel:${booking.phone.replace(/\s+/g, '')}`}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] flex items-center gap-1"
+                    className="p-2 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/30 transition-colors flex items-center justify-center shrink-0"
+                    title={`Call Devotee: ${booking.phone}`}
+                    aria-label={`Call Devotee ${booking.phone}`}
                   >
-                    <Phone className="w-3 h-3" />
-                    <span>Call</span>
+                    <Phone className="w-3.5 h-3.5" />
                   </a>
                   <button
                     onClick={handleSendViaWhatsApp}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] flex items-center gap-1 cursor-pointer"
+                    className="p-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/30 transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                    title={`WhatsApp Devotee: ${booking.phone}`}
+                    aria-label={`WhatsApp Devotee ${booking.phone}`}
                   >
-                    <MessageCircle className="w-3 h-3" />
-                    <span>WhatsApp</span>
+                    <MessageCircle className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -539,7 +537,6 @@ export const QRVerificationModal: React.FC<QRVerificationModalProps> = ({
                 <div className="p-2.5 rounded-lg bg-black/40 border border-amber-500/15 space-y-0.5 text-[10px] font-mono text-amber-200">
                   <div>Vidhi: {booking.poojaType}</div>
                   <div>Date & Muhurat: {booking.date} ({booking.time})</div>
-                  <div>Venue: Kushavarta Kund Ghat & Mandir Gate 2</div>
                 </div>
                 <p className="text-amber-200/90 font-medium">
                   Our Hereditary Vatandar Tirth Purohit, <strong>Pt. Pravin Shambhu Deshmukh (Desai)</strong>, will contact you directly on WhatsApp / Mobile (<strong>+91 {booking.phone}</strong>) 24 hours prior to guide you on fasting (upvaas), traditional attire, and sacred preparations.

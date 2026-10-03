@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { InnerPageHero } from '../components/InnerPageHero';
 import { TrishulIcon, TempleIcon, VedicScrollIcon } from '../components/Motifs';
 import {
@@ -12,11 +12,20 @@ import { ARTICLES_DATA } from '../data/articlesData';
 import { useNavigation } from '../context/NavigationContext';
 import { GalleryItem, AppRoute, SupportedLanguage } from '../types';
 import {
+  fetchGalleryPage,
+  GalleryRecord,
+  formatGalleryDate,
+} from '../services/galleryService';
+import { SEO } from '../components/SEO';
+import { getImageGallerySchema, getBreadcrumbSchema } from '../utils/seoData';
+import {
   Search,
   ZoomIn,
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Share2,
   Calendar,
   MapPin,
@@ -37,6 +46,7 @@ import {
   UserCheck,
   BookOpen,
   Info,
+  Loader2,
 } from 'lucide-react';
 
 interface GalleryPageProps {
@@ -59,20 +69,47 @@ const LANGUAGE_LABELS: Record<string, { label: string; native: string }> = {
 export function GalleryPage({ slug }: GalleryPageProps) {
   const { currentRoute, navigate, openBooking } = useNavigation();
 
+  // Server-side pagination state (4 rows × 4 cols = 16 per page)
+  const PAGE_SIZE = 16;
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalElements, setTotalElements] = useState<number>(0);
+  const [currentPageItems, setCurrentPageItems] = useState<GalleryItem[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState<boolean>(true);
+
+  // Gallery Filter & Search States
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
+
+  // Lightbox Modal States
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [isZoomed, setIsZoomed] = useState<boolean>(false);
+  const [copiedToast, setCopiedToast] = useState<boolean>(false);
+  const [touchStartX, setTouchStartX] = useState<number>(0);
+
+  // Debounce search state and ref
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+
   // Route extraction: Check if current route is /gallery/:slug
-  let routeSlug = slug;
-  if (!routeSlug && currentRoute.startsWith('/gallery/')) {
-    routeSlug = currentRoute.replace('/gallery/', '').trim();
-  }
+  const routeSlug = useMemo(() => {
+    if (slug) return slug;
+    if (currentRoute.startsWith('/gallery/')) {
+      return currentRoute.replace('/gallery/', '').trim();
+    }
+    return '';
+  }, [slug, currentRoute]);
 
   // Check if route matches an individual photo OR a collection
   const photoFromRoute = useMemo(() => {
     if (!routeSlug) return null;
     return (
+      (currentPageItems || []).find((item) => item.slug === routeSlug || String(item.id) === routeSlug) ||
       GALLERY_DATA.find((item) => item.slug === routeSlug || item.id === routeSlug) ||
       null
     );
-  }, [routeSlug]);
+  }, [routeSlug, currentPageItems]);
 
   const collectionFromRoute = useMemo(() => {
     if (!routeSlug || photoFromRoute) return null;
@@ -83,22 +120,6 @@ export function GalleryPage({ slug }: GalleryPageProps) {
     );
   }, [routeSlug, photoFromRoute]);
 
-  // Gallery Filter & Search States
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    collectionFromRoute ? collectionFromRoute.category : 'All'
-  );
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
-
-  // Lightbox Modal States
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [isZoomed, setIsZoomed] = useState<boolean>(false);
-  const [copiedToast, setCopiedToast] = useState<boolean>(false);
-  const [touchStartX, setTouchStartX] = useState<number>(0);
-
-  // Pagination / Load More state (editorial performance)
-  const [visibleCount, setVisibleCount] = useState<number>(12);
-
   // When collection is selected from route, sync category
   useEffect(() => {
     if (collectionFromRoute) {
@@ -106,33 +127,69 @@ export function GalleryPage({ slug }: GalleryPageProps) {
     }
   }, [collectionFromRoute]);
 
-  // Filtered Gallery Items
+  // Debounce search input
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setCurrentPage(0);
+    }, 380);
+  }, [searchQuery]);
+
+  // Fetch gallery page from server/fallback whenever filters/page changes
+  const loadGalleryPage = useCallback(async () => {
+    setGalleryLoading(true);
+    try {
+      const result = await fetchGalleryPage({
+        page: currentPage,
+        size: PAGE_SIZE,
+        search: debouncedSearch,
+        category: selectedCategory === 'All' ? '' : selectedCategory,
+        sortBy: 'id',
+        sortDir: 'desc',
+      });
+      // Map GalleryRecord → GalleryItem (compatible shape)
+      const mapped: GalleryItem[] = result.content.map((r) => ({
+        id: String(r.id),
+        title: r.title,
+        titleNative: r.titleNative,
+        caption: r.caption,
+        description: r.description,
+        imageUrl: r.imageUrl,
+        thumbnailUrl: r.thumbnailUrl,
+        category: r.category,
+        collection: r.collection,
+        location: r.location,
+        event: r.event,
+        date: r.date,
+        year: r.year,
+        photographer: r.photographer,
+        source: r.source,
+        altText: r.altText,
+        featured: r.featured,
+        layoutSpan: r.layoutSpan as any,
+        tags: r.tags,
+        slug: r.slug,
+        isUploaded: r.isUploaded,
+      } as GalleryItem));
+      setCurrentPageItems(mapped);
+      setTotalPages(result.totalPages);
+      setTotalElements(result.totalElements);
+    } catch (err) {
+      console.error('Gallery page load error:', err);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [currentPage, debouncedSearch, selectedCategory]);
+
+  useEffect(() => {
+    loadGalleryPage();
+  }, [loadGalleryPage]);
+
+  // Active page items used for grid display and lightbox navigation
   const filteredItems = useMemo(() => {
-    return GALLERY_DATA.filter((item) => {
-      // Category Match
-      const matchesCategory =
-        selectedCategory === 'All' ||
-        item.category === selectedCategory ||
-        (item.tags && item.tags.includes(selectedCategory));
-
-      // Search Query Match across titles, native script, captions, description, tags & location
-      const query = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !query ||
-        item.title.toLowerCase().includes(query) ||
-        (item.titleNative && item.titleNative.toLowerCase().includes(query)) ||
-        item.caption.toLowerCase().includes(query) ||
-        (item.description && item.description.toLowerCase().includes(query)) ||
-        (item.location && item.location.toLowerCase().includes(query)) ||
-        (item.tags && item.tags.some((t) => t.toLowerCase().includes(query)));
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [selectedCategory, searchQuery]);
-
-  const displayedItems = useMemo(() => {
-    return filteredItems.slice(0, visibleCount);
-  }, [filteredItems, visibleCount]);
+    return currentPageItems;
+  }, [currentPageItems]);
 
   // Handle Share link
   const handleShare = async (item: GalleryItem) => {
@@ -248,6 +305,23 @@ export function GalleryPage({ slug }: GalleryPageProps) {
 
     return (
       <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+        <SEO
+          title={`${photoFromRoute.title} | Trimbakeshwar Sacred Gallery`}
+          description={photoFromRoute.description || `Sacred photograph of ${photoFromRoute.title} at Shri Kshetra Trimbakeshwar Jyotirlinga, Nashik.`}
+          canonicalPath={`/gallery/${photoFromRoute.slug || photoFromRoute.id}`}
+          ogImage={photoFromRoute.imageUrl}
+          keywords={[
+            photoFromRoute.title,
+            photoFromRoute.category,
+            'Trimbakeshwar photos',
+            'Trimbakeshwar temple images',
+          ]}
+          schema={getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Gallery', path: '/gallery' },
+            { name: photoFromRoute.title, path: `/gallery/${photoFromRoute.slug || photoFromRoute.id}` },
+          ])}
+        />
         {/* Breadcrumb Header */}
         <div className="bg-gradient-to-b from-[#5A1717] via-[#431111] to-[#2B0A0A] text-white pt-24 pb-12 px-4 sm:px-6">
           <div className="max-w-6xl mx-auto">
@@ -417,12 +491,12 @@ export function GalleryPage({ slug }: GalleryPageProps) {
                     </div>
                   )}
 
-                  {photoFromRoute.date && (
+                  {(photoFromRoute.date || photoFromRoute.createdAt) && (
                     <div className="flex items-start gap-2.5">
                       <Calendar className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
                       <div>
                         <span className="text-stone-500 block text-[10px] uppercase font-bold">Date / Timing</span>
-                        <span className="text-stone-800 font-medium">{photoFromRoute.date}</span>
+                        <span className="text-stone-800 font-medium">{photoFromRoute.date || formatGalleryDate(photoFromRoute.createdAt)}</span>
                       </div>
                     </div>
                   )}
@@ -548,6 +622,25 @@ export function GalleryPage({ slug }: GalleryPageProps) {
   // =========================================================================
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20">
+      <SEO
+        title="Sacred Darshan Photo Gallery | Trimbakeshwar Temple & Kushavarta Kund"
+        description="High-resolution sacred visual archive of Shri Trimbakeshwar Jyotirlinga, Kushavarta Kund, Brahmagiri Hills, Suvarna Mukut Darshan, and Vedic Pooja Vidhis."
+        canonicalPath="/gallery"
+        keywords={[
+          'Trimbakeshwar photo gallery',
+          'Trimbakeshwar temple images HD',
+          'Kushavarta Kund photos',
+          'Brahmagiri pictures',
+          'Trimbakeshwar darshan gallery',
+        ]}
+        schema={[
+          getImageGallerySchema(filteredItems),
+          getBreadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Gallery', path: '/gallery' },
+          ]),
+        ]}
+      />
       {/* Cinematic Hero Section */}
       <div className="relative bg-gradient-to-b from-[#2B0A0A] via-[#431111] to-[#5A1717] text-white pt-24 sm:pt-28 pb-16 sm:pb-20 px-4 sm:px-6 overflow-hidden">
         {/* Background Image Layer with Warm Morning Mist */}
@@ -755,15 +848,15 @@ export function GalleryPage({ slug }: GalleryPageProps) {
                 )}
               </div>
 
-              {/* Horizontal swipeable filter row without vertical wrap */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
+              {/* Wrapped category filter chips */}
+              <div className="flex flex-wrap items-center gap-2 pb-1">
                 {GALLERY_CATEGORIES.map((cat) => {
                   const isActive = selectedCategory === cat;
                   return (
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                         isActive
                           ? 'bg-[#5A1717] text-amber-200 border-[#5A1717] shadow-xs'
                           : 'bg-[#FBF6EA] text-stone-700 border-[#B88935]/30 hover:bg-[#EDE3D1] hover:text-[#5A1717]'
@@ -780,20 +873,34 @@ export function GalleryPage({ slug }: GalleryPageProps) {
           {/* Results Bar */}
           <div className="flex items-center justify-between text-xs text-stone-600 px-1">
             <span className="font-semibold text-[#5A1717]">
-              Showing {filteredItems.length} Photographs
-              {selectedCategory !== 'All' && (
-                <span className="text-stone-500 font-normal"> in &quot;{selectedCategory}&quot;</span>
+              {galleryLoading ? 'Loading…' : (
+                <>
+                  Showing {totalElements > 0 ? `${currentPage * PAGE_SIZE + 1}–${Math.min((currentPage + 1) * PAGE_SIZE, totalElements)} of ${totalElements}` : filteredItems.length} Photographs
+                  {selectedCategory !== 'All' && (
+                    <span className="text-stone-500 font-normal"> in &quot;{selectedCategory}&quot;</span>
+                  )}
+                </>
               )}
             </span>
             <span className="text-stone-400">Click any photograph to view high resolution</span>
           </div>
 
-          {/* =========================================================================
-              EDITORIAL MASONRY GALLERY GRID
-              ========================================================================= */}
-          {displayedItems.length > 0 ? (
+          {/* EDITORIAL MASONRY GALLERY GRID */}
+          {galleryLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-              {displayedItems.map((item, index) => {
+              {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden bg-white border border-stone-200 animate-pulse shadow-xs">
+                  <div className="h-56 sm:h-64 bg-stone-200" />
+                  <div className="p-3.5 space-y-2">
+                    <div className="h-3 bg-stone-200 rounded w-3/4" />
+                    <div className="h-2 bg-stone-200 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredItems.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {filteredItems.map((item, index) => {
                 const isVideo = item.category === 'Videos' || Boolean(item.videoUrl);
                 const isAnnouncement = item.category === 'Announcements';
 
@@ -856,7 +963,10 @@ export function GalleryPage({ slug }: GalleryPageProps) {
                       </p>
 
                       <div className="mt-2.5 pt-2 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-400">
-                        <span>{item.date || item.year || 'Sanatan Heritage'}</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-[#C56A18]" />
+                          <span>{item.date || formatGalleryDate(item.createdAt) || item.year || 'Sanatan Heritage'}</span>
+                        </span>
                         <span className="text-[#5A1717] font-semibold group-hover:text-[#C56A18] inline-flex items-center gap-0.5">
                           <span>View Detail</span>
                           <ArrowRight className="w-3 h-3" />
@@ -891,15 +1001,60 @@ export function GalleryPage({ slug }: GalleryPageProps) {
             </div>
           )}
 
-          {/* Load More Button if applicable */}
-          {filteredItems.length > visibleCount && (
-            <div className="text-center pt-6">
-              <button
-                onClick={() => setVisibleCount((prev) => prev + 12)}
-                className="px-6 py-2.5 rounded-full text-xs font-bold text-[#5A1717] bg-[#EDE3D1] hover:bg-[#B88935]/20 border border-[#B88935]/40 transition-colors shadow-xs cursor-pointer"
-              >
-                Load More Photographs ({filteredItems.length - visibleCount} remaining)
-              </button>
+          {/* ── Server-Side Pagination UI ── */}
+          {!galleryLoading && totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 px-1">
+              <p className="text-xs text-stone-500">
+                Page {currentPage + 1} of {totalPages} · {totalElements} total photographs
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setCurrentPage(0); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={currentPage === 0}
+                  className="p-1.5 rounded-lg bg-[#EDE3D1] hover:bg-[#D4AF37]/30 text-[#5A1717] disabled:opacity-30 transition-colors border border-[#B88935]/30"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={currentPage === 0}
+                  className="p-1.5 rounded-lg bg-[#EDE3D1] hover:bg-[#D4AF37]/30 text-[#5A1717] disabled:opacity-30 transition-colors border border-[#B88935]/30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const delta = 2;
+                  const start = Math.max(0, Math.min(currentPage - delta, totalPages - 5));
+                  const p = start + i;
+                  return p < totalPages ? (
+                    <button
+                      key={p}
+                      onClick={() => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors border ${
+                        p === currentPage
+                          ? 'bg-[#5A1717] text-amber-200 border-[#5A1717] shadow-xs'
+                          : 'bg-[#EDE3D1] text-stone-700 border-[#B88935]/30 hover:bg-[#D4AF37]/20'
+                      }`}
+                    >
+                      {p + 1}
+                    </button>
+                  ) : null;
+                })}
+                <button
+                  onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={currentPage >= totalPages - 1}
+                  className="p-1.5 rounded-lg bg-[#EDE3D1] hover:bg-[#D4AF37]/30 text-[#5A1717] disabled:opacity-30 transition-colors border border-[#B88935]/30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { setCurrentPage(totalPages - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={currentPage >= totalPages - 1}
+                  className="p-1.5 rounded-lg bg-[#EDE3D1] hover:bg-[#D4AF37]/30 text-[#5A1717] disabled:opacity-30 transition-colors border border-[#B88935]/30"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1092,11 +1247,17 @@ export function GalleryPage({ slug }: GalleryPageProps) {
                   {getImageTranslation(filteredItems[lightboxIndex], selectedLanguage).caption}
                 </p>
                 <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400 pt-1">
+                  {(filteredItems[lightboxIndex].date || filteredItems[lightboxIndex].createdAt) && (
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#B88935]" />
+                      <span>{filteredItems[lightboxIndex].date || formatGalleryDate(filteredItems[lightboxIndex].createdAt)}</span>
+                    </span>
+                  )}
                   {filteredItems[lightboxIndex].location && (
-                    <span className="inline-flex items-center gap-1"><TempleIcon className="w-3.5 h-3.5 text-[#B88935]" /> {filteredItems[lightboxIndex].location}</span>
+                    <span className="inline-flex items-center gap-1">• <TempleIcon className="w-3.5 h-3.5 text-[#B88935]" /> {filteredItems[lightboxIndex].location}</span>
                   )}
                   {filteredItems[lightboxIndex].year && (
-                    <span className="inline-flex items-center gap-1">• <TempleIcon className="w-3.5 h-3.5 text-[#B88935]" /> {filteredItems[lightboxIndex].year}</span>
+                    <span className="inline-flex items-center gap-1">• <Sparkles className="w-3.5 h-3.5 text-[#B88935]" /> {filteredItems[lightboxIndex].year}</span>
                   )}
                   {filteredItems[lightboxIndex].source && (
                     <span className="inline-flex items-center gap-1">• <VedicScrollIcon className="w-3.5 h-3.5 text-[#B88935]" /> {filteredItems[lightboxIndex].source}</span>

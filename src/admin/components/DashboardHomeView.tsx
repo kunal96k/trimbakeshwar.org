@@ -1,5 +1,5 @@
-import React from 'react';
-import { Booking, DevoteeLead, PanchangInfo } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Booking, DevoteeLead, AdminTab } from '../types';
 import {
   CalendarCheck,
   QrCode,
@@ -15,37 +15,76 @@ import {
   MapPin,
   CheckCircle2,
   AlertTriangle,
-  Download,
+  BookOpen,
   ImagePlus,
-  Sun,
   ShieldCheck,
   Eye,
   Flame,
 } from 'lucide-react';
+import { fetchBookingStats, fetchContactEnquiryStats } from '../../services/enquiryService';
 
 interface DashboardHomeViewProps {
   bookings: Booking[];
   leads: DevoteeLead[];
-  panchang: PanchangInfo;
   searchQuery: string;
   onOpenNewBooking: () => void;
   onSelectBookingForQR: (booking: Booking) => void;
-  onNavigateTab: (tab: 'bookings' | 'inquiries' | 'payments' | 'gallery' | 'analytics') => void;
+  onNavigateTab: (tab: AdminTab) => void;
   onLeadContacted: (leadId: string) => void;
-  onExportReport: () => void;
 }
 
 export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   bookings,
   leads,
-  panchang,
   searchQuery,
   onOpenNewBooking,
   onSelectBookingForQR,
   onNavigateTab,
   onLeadContacted,
-  onExportReport,
 }) => {
+  // Live aggregate stats synchronized directly with PostgreSQL/Spring Boot database
+  const [dbBookingStats, setDbBookingStats] = useState<{
+    total: number;
+    pendingCount: number;
+    verifiedCount: number;
+    rejectedCount: number;
+    verifiedRevenue: number;
+  } | null>(null);
+
+  const [dbEnquiryStats, setDbEnquiryStats] = useState<{
+    total: number;
+    newCount: number;
+    contactedCount: number;
+    bookedCount: number;
+    closedCount: number;
+  } | null>(null);
+
+  const syncDatabaseStats = async () => {
+    try {
+      const [bStats, eStats] = await Promise.all([
+        fetchBookingStats(),
+        fetchContactEnquiryStats(),
+      ]);
+      if (bStats) setDbBookingStats(bStats as any);
+      if (eStats) setDbEnquiryStats(eStats as any);
+    } catch (err) {
+      console.debug('Database stats sync fallback:', err);
+    }
+  };
+
+  useEffect(() => {
+    syncDatabaseStats();
+    const handleSync = () => syncDatabaseStats();
+    window.addEventListener('trimbak_booking_submitted', handleSync);
+    window.addEventListener('trimbak_booking_updated', handleSync);
+    window.addEventListener('trimbak_enquiry_submitted', handleSync);
+    return () => {
+      window.removeEventListener('trimbak_booking_submitted', handleSync);
+      window.removeEventListener('trimbak_booking_updated', handleSync);
+      window.removeEventListener('trimbak_enquiry_submitted', handleSync);
+    };
+  }, []);
+
   // Live filtered bookings based on global search
   const filteredBookings = bookings.filter((b) => {
     if (!searchQuery.trim()) return true;
@@ -64,44 +103,34 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     );
   });
 
-  // Calculate live counts and values
-  const totalBookingsCount = bookings.length;
-  const pendingQRCount = bookings.filter((b) => b.qrStatus === 'pending_verification').length;
-  const newLeadsCount = leads.filter((l) => l.status === 'new').length;
-  const totalAdvanceCollected = bookings
-    .filter((b) => b.qrStatus === 'verified')
-    .reduce((sum, b) => sum + (b.advanceAmount || 1000), 0);
+  // Calculate live counts and values (with backend aggregate stats priority)
+  const verifiedBookingsLocal = bookings.filter((b) => b.qrStatus === 'verified');
+  const localVerifiedRevenue = verifiedBookingsLocal.reduce((sum, b) => sum + (Number(b.advanceAmount) || 1000), 0);
+  const localPendingCount = bookings.filter((b) => b.qrStatus === 'pending_verification').length;
+  const localNewLeadsCount = leads.filter((l) => l.status === 'new').length;
 
-  // Today's scheduled vidhis (or upcoming if none today)
+  const totalBookingsCount = dbBookingStats ? dbBookingStats.total : bookings.length;
+  const pendingQRCount = dbBookingStats ? dbBookingStats.pendingCount : localPendingCount;
+  const verifiedRitualsCount = dbBookingStats ? dbBookingStats.verifiedCount : verifiedBookingsLocal.length;
+  const totalAdvanceCollected = dbBookingStats
+    ? (dbBookingStats.verifiedRevenue ?? (dbBookingStats.verifiedCount * 1000))
+    : localVerifiedRevenue;
+  const totalEnquiriesCount = dbEnquiryStats ? dbEnquiryStats.total : leads.length;
+  const newEnquiriesCount = dbEnquiryStats ? dbEnquiryStats.newCount : localNewLeadsCount;
+
+  // Today's scheduled vidhis (or upcoming if none today) - strictly latest 5 records
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayOnly = filteredBookings.filter(
     (b) => b.status === 'in_progress' || (Boolean(b.date) && (String(b.date).includes(todayStr) || String(b.date).toLowerCase().includes('today')))
   );
-  const todaySchedule = todayOnly.length > 0 ? todayOnly : filteredBookings.slice(0, 5);
+  const todaySchedule = (todayOnly.length > 0 ? todayOnly : filteredBookings).slice(0, 5);
 
-  // Latest 4 bookings for the QR screenshot verification widget
-  const recentBookingsList = filteredBookings.slice(0, 4);
+  // Latest 5 bookings for the QR screenshot verification widget
+  const recentBookingsList = filteredBookings.slice(0, 5);
 
   return (
     <div className="space-y-6">
-      {/* 2. LIVE PANCHANG & AUSPICIOUS MUHURAT STRIP */}
-      <div className="px-4 py-3 rounded-2xl bg-gradient-to-r from-[#1B0C08] to-[#120705] border border-amber-500/20 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-stone-300 shadow-md">
-        <div className="flex items-center gap-2">
-          <Sun className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-semibold text-amber-100 font-sanskrit text-[13px]">
-            Today's Auspicious Muhurat & Timings:
-          </span>
-          <span className="text-amber-200/90">{panchang.muhurat}</span>
-        </div>
-
-        <div className="flex items-center gap-3 text-[11px] text-stone-400">
-          <span>Rahu Kaal: <strong className="text-rose-400 font-mono">{panchang.rahukaal}</strong></span>
-          <span aria-hidden="true">·</span>
-          <span className="text-amber-300/80">{panchang.nakshatra}</span>
-        </div>
-      </div>
-
-      {/* 3. 4 KEY STAT CARDS (KPIs) strictly matching prompt */}
+      {/* 1. 4 KEY STAT CARDS (KPIs) - Live Database Synced */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* KPI 1: Total Pooja Bookings */}
         <div
@@ -116,7 +145,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-amber-200">
-              {totalBookingsCount} Bookings
+              {totalBookingsCount} {totalBookingsCount === 1 ? 'Booking' : 'Bookings'}
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
               <span className="text-emerald-400 font-medium">Sacred Kushavarta Ledger</span>
@@ -151,29 +180,29 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 3: Unresolved Inquiries */}
+        {/* KPI 3: Total Enquiries */}
         <div
           onClick={() => onNavigateTab('inquiries')}
           className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#1C1226] to-[#120B1A] border border-indigo-500/25 shadow-lg flex flex-col justify-between hover:border-indigo-400/60 cursor-pointer transition-all group"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-stone-300 font-medium">Unresolved Inquiries</span>
+            <span className="text-xs text-stone-300 font-medium">Total Enquiries</span>
             <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-700 text-white font-bold shadow-sm">
               <MessageSquareQuote className="w-4 h-4" />
             </div>
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-blue-200">
-              {newLeadsCount} {newLeadsCount === 1 ? 'Inquiry' : 'Inquiries'}
+              {totalEnquiriesCount} {totalEnquiriesCount === 1 ? 'Enquiry' : 'Enquiries'}
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
-              <span className="text-blue-300">Avg response 15 min</span>
+              <span className="text-blue-300">{newEnquiriesCount} New · Synced Live</span>
               <ChevronRight className="w-3.5 h-3.5 text-stone-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
             </div>
           </div>
         </div>
 
-        {/* KPI 4: Advance Tokens Collected */}
+        {/* KPI 4: Advance Tokens Collected - Live DB Verified Amount */}
         <div
           onClick={() => onNavigateTab('payments')}
           className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#112417] to-[#0A160E] border border-emerald-500/25 shadow-lg flex flex-col justify-between hover:border-emerald-400/60 cursor-pointer transition-all group"
@@ -186,17 +215,19 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-emerald-300">
-              ₹54,000
+              ₹{totalAdvanceCollected.toLocaleString('en-IN')}
             </div>
             <div className="text-[11px] text-stone-400 mt-1 flex items-center justify-between">
               <span className="text-emerald-400">₹1,000 Token Model</span>
-              <span className="text-[10px] text-stone-400 font-mono">54 Rituals</span>
+              <span className="text-[10px] text-stone-400 font-mono">
+                {verifiedRitualsCount} {verifiedRitualsCount === 1 ? 'Ritual' : 'Rituals'}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. QUICK ACTION GRID: New Booking, Verify Payment QR, Upload Gallery Images, Export Monthly Report */}
+      {/* 2. QUICK ACTION GRID: New Booking, Verify Payment QR, Upload Gallery Images, Articles & Blogs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={onOpenNewBooking}
@@ -242,15 +273,15 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
         </button>
 
         <button
-          onClick={onExportReport}
+          onClick={() => onNavigateTab('articles')}
           className="p-3.5 rounded-2xl bg-[#1D0E0A] border border-amber-500/20 hover:border-amber-400/50 hover:bg-amber-500/10 flex items-center gap-3 text-left transition-all active:scale-[0.98]"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shrink-0 shadow">
-            <Download className="w-5 h-5" />
+            <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs font-bold text-amber-100 font-sanskrit">Export Monthly Report</div>
-            <div className="text-[10px] text-stone-400">Financial & Seva Audit</div>
+            <div className="text-xs font-bold text-amber-100 font-sanskrit">Articles & Blogs</div>
+            <div className="text-[10px] text-stone-400">Spiritual Literature & SEO</div>
           </div>
         </button>
       </div>
@@ -306,7 +337,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                           {item.devoteeName}
                         </span>
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+                          className={`w-fit inline-flex items-center shrink-0 whitespace-nowrap text-[10px] px-2 py-0.5 rounded-full border font-medium ${
                             isInProgress
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                               : 'bg-amber-500/15 text-amber-300 border-amber-400/30'
@@ -331,26 +362,26 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Direct "Call" / "WhatsApp" buttons */}
+                    {/* Direct "Call" / "WhatsApp" logo icons only */}
                     <div className="flex items-center gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-800">
                       <a
                         href={`tel:${String(item.phone || '').replace(/\s+/g, '')}`}
-                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-stone-950 border border-amber-400/30 text-xs font-semibold transition-colors flex items-center gap-1"
-                        title="Direct Call Devotee"
+                        className="p-2 rounded-xl bg-amber-500/15 text-amber-300 hover:bg-amber-500 hover:text-stone-950 border border-amber-400/30 transition-colors flex items-center justify-center shrink-0"
+                        title={`Call Devotee: ${item.phone}`}
+                        aria-label={`Call Devotee ${item.phone}`}
                       >
                         <Phone className="w-3.5 h-3.5" />
-                        <span>Call</span>
                       </a>
 
                       <a
                         href={`https://wa.me/${String(item.phone || '').replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar,%20regarding%20your%20scheduled%20${encodeURIComponent(item.poojaType || 'Puja')}%20with%20Pt.%20Pravin%20Shambhu%20Deshmukh%20(Desai)%20Guruji.`}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-stone-950 border border-emerald-400/30 text-xs font-semibold transition-colors flex items-center gap-1"
-                        title="Direct WhatsApp Devotee"
+                        className="p-2 rounded-xl bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-stone-950 border border-emerald-400/30 transition-colors flex items-center justify-center shrink-0"
+                        title={`WhatsApp Devotee: ${item.phone}`}
+                        aria-label={`WhatsApp Devotee ${item.phone}`}
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        <span>WhatsApp</span>
                       </a>
                     </div>
                   </div>
@@ -410,7 +441,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
                   <div className="text-right shrink-0">
                     <span
-                      className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border mb-1.5 font-medium ${
+                      className={`w-fit inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-[10px] px-2 py-0.5 rounded-full border mb-1.5 font-medium ${
                         isPending
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
                           : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
@@ -457,7 +488,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
       </div>
 
-      {/* 6. DEVOTEE INQUIRIES & LEADS FEED */}
+      {/* 6. DEVOTEE ENQUIRIES & LEADS FEED */}
       <div className="rounded-3xl bg-[#1A0D0A] border border-amber-500/25 p-5 sm:p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -466,7 +497,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             </div>
             <div>
               <h2 className="font-bold text-base sm:text-lg text-amber-100 font-sanskrit">
-                Devotee Inquiries & High-Intent Leads
+                Devotee Enquiries & High-Intent Leads
               </h2>
               <p className="text-[11px] text-stone-400">
                 Direct ritual questions and booking requests submitted via official portal
@@ -478,7 +509,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             onClick={() => onNavigateTab('inquiries')}
             className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1 font-medium"
           >
-            <span>All ({leads.length}) Inquiries</span>
+            <span>All ({totalEnquiriesCount}) Enquiries</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -496,8 +527,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {leads.slice(0, 4).map((lead) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {leads.slice(0, 5).map((lead) => (
               <div
                 key={lead.id}
                 className="p-4 rounded-2xl bg-black/45 border border-amber-500/15 hover:border-amber-400/40 transition-colors space-y-2.5"
@@ -522,7 +553,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${lead.status === 'new' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
+                    <span className={`w-fit inline-flex items-center shrink-0 whitespace-nowrap text-[10px] font-mono px-2 py-0.5 rounded-full border ${lead.status === 'new' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
                       {lead.status === 'new' ? 'New' : 'Contacted'}
                     </span>
                     <div className="text-[10px] text-stone-400 font-mono mt-1">{lead.timeAgo}</div>
@@ -538,25 +569,27 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     {lead.phone}
                   </span>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <a
                       href={`tel:${String(lead.phone || '').replace(/\s+/g, '')}`}
                       onClick={() => onLeadContacted(lead.id)}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-semibold flex items-center gap-1"
+                      className="p-2 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-400/30 transition-colors flex items-center justify-center shrink-0"
+                      title={`Call Devotee: ${lead.phone}`}
+                      aria-label={`Call Devotee ${lead.phone}`}
                     >
-                      <Phone className="w-3 h-3" />
-                      <span>Call</span>
+                      <Phone className="w-3.5 h-3.5" />
                     </a>
 
                     <a
-                      href={`https://wa.me/${String(lead.phone || '').replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar%20${encodeURIComponent(lead.name || '')},%20regarding%20your%20inquiry%20for%20${encodeURIComponent(lead.poojaRequested || 'Puja')}.`}
+                      href={`https://wa.me/${String(lead.phone || '').replace(/[^0-9]/g, '')}?text=Jai%20Trimbakeshwar%20${encodeURIComponent(lead.name || '')},%20regarding%20your%20enquiry%20for%20${encodeURIComponent(lead.poojaRequested || 'Puja')}.`}
                       target="_blank"
                       rel="noreferrer"
                       onClick={() => onLeadContacted(lead.id)}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold flex items-center gap-1"
+                      className="p-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-stone-950 border border-emerald-400/30 transition-colors flex items-center justify-center shrink-0"
+                      title={`WhatsApp Devotee: ${lead.phone}`}
+                      aria-label={`WhatsApp Devotee ${lead.phone}`}
                     >
-                      <MessageCircle className="w-3 h-3" />
-                      <span>WhatsApp</span>
+                      <MessageCircle className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 </div>

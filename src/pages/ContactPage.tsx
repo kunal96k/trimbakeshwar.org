@@ -34,6 +34,9 @@ import {
 } from 'lucide-react';
 import { SacredMandala, TrishulIcon } from '../components/Motifs';
 import { submitContactEnquiry } from '../services/enquiryService';
+import { SEO } from '../components/SEO';
+import { getPurohitLocalBusinessSchema, getBreadcrumbSchema } from '../utils/seoData';
+import { trackEvent } from '../utils/analytics';
 
 export function ContactPage() {
   const { currentRoute, navigate, openBooking } = useNavigation();
@@ -101,14 +104,26 @@ export function ContactPage() {
     }
   };
 
+  // ── Utility: strip HTML tags from a string (XSS client-side guard) ──────
+  const stripHtml = (v: string) =>
+    v.replace(/<[^>]*>/g, '').replace(/javascript\s*:/gi, '').replace(/on\w+\s*=/gi, '');
+
+  // ── Utility: word count ──────────────────────────────────────────────────
+  const wordCount = (v: string) => v.trim() === '' ? 0 : v.trim().split(/\s+/).length;
+
   // Form Validation
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Name: 2–100 chars, no HTML
     if (!formData.name.trim()) {
       newErrors.name = activeLang === 'mr' ? 'कृपया आपले पूर्ण नाव प्रविष्ट करा.' : activeLang === 'hi' ? 'कृपया अपना पूरा नाम दर्ज करें।' : 'Please enter your full name.';
     } else if (formData.name.trim().length < 2) {
       newErrors.name = activeLang === 'mr' ? 'नाव किमान २ अक्षरांचे असावे.' : activeLang === 'hi' ? 'नाम कम से कम २ अक्षरों का होना चाहिए।' : 'Name must be at least 2 characters.';
+    } else if (formData.name.trim().length > 100) {
+      newErrors.name = 'Name must not exceed 100 characters.';
+    } else if (/<[^>]*>/.test(formData.name)) {
+      newErrors.name = 'Name must not contain HTML or special markup.';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -118,17 +133,26 @@ export function ContactPage() {
       newErrors.email = activeLang === 'mr' ? 'अवैध ईमेल पत्ता.' : activeLang === 'hi' ? 'अमान्य ईमेल पता।' : 'Please enter a valid email address.';
     }
 
+    // Phone: min 10 / max 20 digits
     const phoneDigits = formData.phone.replace(/[^0-9]/g, '');
     if (!formData.phone.trim()) {
       newErrors.phone = activeLang === 'mr' ? 'कृपया संपर्क क्रमांक प्रविष्ट करा.' : activeLang === 'hi' ? 'कृपया संपर्क नंबर दर्ज करें।' : 'Please enter your contact number.';
-    } else if (phoneDigits.length < 7) {
-      newErrors.phone = activeLang === 'mr' ? 'कृपया किमान ७ अंकी क्रमांक प्रविष्ट करा.' : activeLang === 'hi' ? 'कृपया कम से कम ७ अंकों का नंबर दर्ज करें।' : 'Please enter a valid contact number (min 7 digits).';
+    } else if (phoneDigits.length < 10) {
+      newErrors.phone = activeLang === 'mr' ? 'कृपया किमान १० अंकी क्रमांक प्रविष्ट करा.' : activeLang === 'hi' ? 'कृपया कम से कम १० अंकों का नंबर दर्ज करें।' : 'Contact number must have at least 10 digits.';
+    } else if (phoneDigits.length > 20) {
+      newErrors.phone = 'Contact number must not exceed 20 digits.';
     }
 
+    // Message: 10 chars min, 200 words max, no HTML
+    const msgWords = wordCount(formData.message);
     if (!formData.message.trim()) {
       newErrors.message = activeLang === 'mr' ? 'कृपया आपला संदेश लिहा.' : activeLang === 'hi' ? 'कृपया अपना संदेश लिखें।' : 'Please write your message.';
     } else if (formData.message.trim().length < 10) {
       newErrors.message = activeLang === 'mr' ? 'संदेश किमान १० अक्षरांचा असावा.' : activeLang === 'hi' ? 'संदेश कम से कम १० अक्षरों का होना चाहिए।' : 'Message should be at least 10 characters long.';
+    } else if (msgWords > 200) {
+      newErrors.message = `Message must not exceed 200 words (currently ${msgWords} words).`;
+    } else if (/<[^>]*>/.test(formData.message)) {
+      newErrors.message = 'Message must not contain HTML tags or script code.';
     }
 
     // Honeypot check
@@ -149,15 +173,22 @@ export function ContactPage() {
 
     setIsSubmitting(true);
 
+    // XSS client-side strip before sending
+    const cleanName    = stripHtml(formData.name.trim());
+    const cleanEmail   = stripHtml(formData.email.trim());
+    const cleanPhone   = stripHtml(formData.phone.trim());
+    const cleanMessage = stripHtml(formData.message.trim());
+    const cleanSubject = stripHtml(formData.subject);
+
     try {
       // 1. Send devotee contact enquiry directly to backend Spring Boot API (POST /api/contact)
       const apiResponse = await submitContactEnquiry({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        subject: formData.subject,
-        poojaRequested: formData.subject,
-        message: formData.message.trim(),
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        subject: cleanSubject,
+        poojaRequested: cleanSubject,
+        message: cleanMessage,
         preferredContactMethod: formData.preferredContactMethod,
         language: formData.languagePreference,
         botField: formData.botField,
@@ -168,11 +199,11 @@ export function ContactPage() {
       const newEnquiry: ContactEnquiry = {
         id: `enquiry-${Date.now()}`,
         enquiryNumber: generatedId,
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        subject: formData.subject,
-        message: formData.message.trim(),
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        subject: cleanSubject,
+        message: cleanMessage,
         preferredContactMethod: formData.preferredContactMethod,
         language: formData.languagePreference,
         source: 'contact_page',
@@ -180,7 +211,10 @@ export function ContactPage() {
         createdAt: new Date().toISOString(),
       };
 
-      // 2. Persist to local devotee store for fast local inspection
+      // 2. Track analytics event
+      trackEvent('submit_contact_enquiry', 'lead_generation', cleanSubject);
+
+      // 3. Persist to local devotee store for fast local inspection
       try {
         const stored = JSON.parse(localStorage.getItem('trimbak_devotee_enquiries') || '[]');
         stored.unshift(newEnquiry);
@@ -229,8 +263,27 @@ export function ContactPage() {
     setErrors({});
   };
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Contact', path: '/contact' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-20 select-none">
+      <SEO
+        title="Contact Trimbakeshwar Devotee Seva Helpdesk | Guruji Contact & Location"
+        description="Get in touch with the official Trimbakeshwar Devotee Seva Helpdesk and Hereditary Vatandar Purohit Pt. Pravin Shambhu Deshmukh. Office located at Kushavart Tirth Chowk, Trimbakeshwar."
+        canonicalPath="/contact"
+        keywords={[
+          'Trimbakeshwar contact number',
+          'Trimbakeshwar Guruji phone number',
+          'Trimbakeshwar temple helpline',
+          'Pt Pravin Deshmukh contact',
+          'Trimbakeshwar address',
+          'Kushavarta Kund location',
+        ]}
+        schema={[getPurohitLocalBusinessSchema(), breadcrumbsSchema]}
+      />
       {/* =========================================================================
           1. BREADCRUMBS ROW
           ========================================================================= */}
@@ -720,6 +773,15 @@ export function ContactPage() {
                           <span>{errors.message}</span>
                         </p>
                       )}
+                      {/* Live word counter */}
+                      {(() => {
+                        const wc = wordCount(formData.message);
+                        return (
+                          <p className={`text-[11px] mt-0.5 text-right ${wc > 200 ? 'text-red-600 font-semibold' : 'text-stone-400'}`}>
+                            {wc} / 200 words
+                          </p>
+                        );
+                      })()}
                     </div>
 
                     {/* Submit Button */}

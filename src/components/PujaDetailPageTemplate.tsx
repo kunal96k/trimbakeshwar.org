@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { InnerPageHero } from './InnerPageHero';
 import { useNavigation } from '../context/NavigationContext';
 import { GURUJI_LIST, ARTICLES_LIST } from '../data/siteData';
+import { SEO } from './SEO';
+import { getBreadcrumbSchema, SEO_CONFIG } from '../utils/seoData';
 import { 
   Calendar, 
   Clock, 
@@ -59,8 +61,75 @@ export function PujaDetailPageTemplate(props: PujaDetailPageProps) {
   // Related articles
   const relatedArticles = ARTICLES_LIST.slice(0, 3);
 
+  // Schemas
+  const serviceSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    '@id': `${SEO_CONFIG.siteUrl}/puja/${props.slug}#service`,
+    name: `${props.title} in Trimbakeshwar`,
+    alternateName: [props.sanskritName, props.nativeTitle].filter(Boolean),
+    serviceType: 'Vedic Pooja / Shanti Vidhi',
+    description: props.overview,
+    provider: {
+      '@type': 'ProfessionalService',
+      name: 'Pt. Pravin Shambhu Deshmukh - Hereditary Vatandar Purohit',
+      telephone: SEO_CONFIG.phone,
+      url: SEO_CONFIG.siteUrl,
+    },
+    areaServed: {
+      '@type': 'Place',
+      name: 'Trimbakeshwar, Nashik, Maharashtra',
+    },
+    offers: {
+      '@type': 'Offer',
+      price: '1000',
+      priceCurrency: 'INR',
+      availability: 'https://schema.org/InStock',
+      description: '₹1,000 Advance token to reserve date and Vedic Muhurat with Guruji.',
+    },
+    image: props.bgImage ? `${SEO_CONFIG.siteUrl}${props.bgImage}` : SEO_CONFIG.defaultOgImage,
+  };
+
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Puja Directory', path: '/puja' },
+    { name: props.title, path: `/puja/${props.slug}` },
+  ]);
+
+  const faqSchema = props.faqs && props.faqs.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: props.faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: f.a,
+      },
+    })),
+  } : null;
+
+  const pageSchemas = [serviceSchema, breadcrumbsSchema, faqSchema].filter(Boolean);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title={`${props.title} in Trimbakeshwar | Procedure, Muhurat & Booking`}
+        description={`${props.overview.slice(0, 155)}... Performed by authorized Hereditary Purohit Pt. Pravin Deshmukh at Trimbakeshwar.`}
+        canonicalPath={`/puja/${props.slug}`}
+        ogImage={props.bgImage}
+        ogType="service"
+        keywords={[
+          props.title,
+          `${props.title} Trimbakeshwar`,
+          `${props.title} cost`,
+          `${props.title} vidhi procedure`,
+          `${props.title} samagri`,
+          'Trimbakeshwar guruji contact',
+          'Vedic puja Nashik',
+        ]}
+        schema={pageSchemas as any}
+      />
       {/* 1. Global Inner Page Hero */}
       <InnerPageHero
         breadcrumbs={[
@@ -462,7 +531,12 @@ export function PujaDetailPageTemplate(props: PujaDetailPageProps) {
                     </div>
                   </div>
                   <div className="text-[11px] text-stone-500 mt-2 flex items-center justify-between">
-                    <span>{art.readTime}</span>
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-[#C56A18]" />
+                      <span>{art.publishedDate || art.date || 'March 2026'}</span>
+                      <span>•</span>
+                      <span>{art.readTime || art.readingTime || '6 min read'}</span>
+                    </span>
                     <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>

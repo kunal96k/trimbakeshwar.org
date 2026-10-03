@@ -1362,7 +1362,7 @@ export function getRelatedArticles(article: ArticleItem, limit = 4): ArticleItem
 }
 
 export function generateArticleJsonLd(article: ArticleItem) {
-  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.trimbakeshwar.org';
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.tirthapurohit.in';
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -1394,7 +1394,7 @@ export function generateArticleJsonLd(article: ArticleItem) {
 }
 
 export function generateBreadcrumbJsonLd(breadcrumbs: { name: string; url: string }[]) {
-  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.trimbakeshwar.org';
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.tirthapurohit.in';
   return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -1423,7 +1423,7 @@ export function generateFaqJsonLd(faqs: { question: string; answer: string }[]) 
 }
 
 export function generateXmlSitemap(): string {
-  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.trimbakeshwar.org';
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.tirthapurohit.in';
   const header = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:xhtml="http://www.w3.org/1999/xhtml">`;
   
   const entries = ARTICLES_DATA.map((art) => {

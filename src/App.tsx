@@ -25,6 +25,7 @@ import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { FaqsPage } from './pages/FaqsPage';
 import { AdminPage } from './pages/AdminPage';
+import { getStoredAdminUser } from './services/authService';
 
 function MainRouter() {
   const {
@@ -37,6 +38,11 @@ function MainRouter() {
     selectedGurujiForBooking,
   } = useNavigation();
 
+  // Scroll to top upon navigating to any route
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [currentRoute]);
+
   // If currently on admin or login route, render full-screen Admin Dashboard directly
   const isAdminOrLoginRoute =
     currentRoute === '/admin' ||
@@ -45,17 +51,14 @@ function MainRouter() {
     currentRoute.startsWith('/login');
 
   if (isAdminOrLoginRoute) {
+    const hasActiveSession = Boolean(getStoredAdminUser());
     const isLoginDirect =
-      currentRoute === '/login' ||
-      currentRoute === '/admin/login' ||
-      (typeof window !== 'undefined' && window.location.hash.toLowerCase().includes('login'));
+      !hasActiveSession &&
+      (currentRoute === '/login' ||
+        currentRoute === '/admin/login' ||
+        (typeof window !== 'undefined' && window.location.hash.toLowerCase().includes('login')));
     return <AdminPage initialOpenLogin={isLoginDirect} />;
   }
-
-  // Scroll to top upon navigating to any route
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [currentRoute]);
 
   const renderActiveView = () => {
     // 1. Home

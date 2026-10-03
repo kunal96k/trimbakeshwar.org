@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>500 - Internal Server Error | Shri Trimbakeshwar Jyotirlinga</title>
+  <meta name="robots" content="noindex, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Manrope:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --color-temple-red: #5A1717;
+      --color-saffron: #C56A18;
+      --color-saffron-light: #E27E23;
+      --color-gold: #B88935;
+      --color-gold-light: #D4AF37;
+      --color-warm-ivory: #FBF6EA;
+      --color-stone-beige: #EDE3D1;
+      --color-charcoal: #211D19;
+      --color-card-bg: rgba(255, 255, 255, 0.96);
+      --font-serif: "Cormorant Garamond", "Noto Serif Devanagari", Georgia, serif;
+      --font-sans: "Manrope", "Noto Sans Devanagari", system-ui, -apple-system, sans-serif;
+      --font-devanagari: "Noto Serif Devanagari", serif;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--color-warm-ivory);
+      color: var(--color-charcoal);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: clamp(1rem, 3.5vw, 2.5rem) clamp(0.85rem, 3.5vw, 1.75rem);
+      background-image:
+        radial-gradient(var(--color-gold) 0.75px, transparent 0.75px),
+        radial-gradient(var(--color-saffron) 0.5px, var(--color-warm-ivory) 0.5px);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+      position: relative;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      width: min(550px, 90vw);
+      height: min(550px, 90vw);
+      background: radial-gradient(circle, rgba(197, 106, 24, 0.15) 0%, rgba(90, 23, 23, 0.05) 50%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .error-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 580px;
+      background: var(--color-card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: clamp(18px, 4vw, 26px);
+      padding: clamp(1.5rem, 5vw, 2.5rem) clamp(1.1rem, 4.5vw, 2.25rem);
+      text-align: center;
+      box-shadow:
+        0 14px 44px -10px rgba(90, 23, 23, 0.14),
+        0 0 0 1px rgba(184, 137, 53, 0.28),
+        0 0 28px rgba(212, 175, 55, 0.12);
+      border-top: 5px solid var(--color-temple-red);
+      animation: fadeIn 0.5s ease-out forwards;
+      margin: auto;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Brand Header with Official Logo */
+    .brand-header {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(0.55rem, 2vw, 0.85rem);
+      margin-bottom: clamp(0.85rem, 2.5vw, 1.15rem);
+      max-width: 100%;
+    }
+
+    .brand-logo-frame {
+      width: clamp(40px, 10vw, 46px);
+      height: clamp(40px, 10vw, 46px);
+      border-radius: 50%;
+      border: 2px solid var(--color-gold);
+      padding: 2px;
+      background: #FFF;
+      box-shadow: 0 2px 8px rgba(184, 137, 53, 0.25);
+      flex-shrink: 0;
+    }
+
+    .brand-logo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .brand-titles {
+      text-align: left;
+      min-width: 0;
+    }
+
+    .brand-name-hi {
+      font-family: var(--font-devanagari);
+      font-size: clamp(0.85rem, 2.8vw, 0.96rem);
+      font-weight: 700;
+      color: var(--color-temple-red);
+      line-height: 1.2;
+    }
+
+    .brand-name-en {
+      font-size: clamp(0.65rem, 2vw, 0.72rem);
+      font-weight: 600;
+      color: var(--color-saffron);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.2;
+      margin-top: 1px;
+    }
+
+    .badge-sacred {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: rgba(90, 23, 23, 0.08);
+      border: 1px solid rgba(90, 23, 23, 0.2);
+      color: var(--color-temple-red);
+      padding: 0.3rem 0.85rem;
+      border-radius: 9999px;
+      font-size: clamp(0.74rem, 2.2vw, 0.82rem);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.65rem;
+      max-width: 100%;
+    }
+
+    .error-code {
+      font-family: var(--font-serif);
+      font-size: clamp(3.6rem, 15vw, 5.8rem);
+      font-weight: 700;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--color-temple-red) 0%, #8A1C14 60%, var(--color-saffron) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .error-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.3rem, 4.8vw, 1.85rem);
+      font-weight: 700;
+      color: var(--color-temple-red);
+      margin-bottom: 0.3rem;
+      line-height: 1.25;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .error-subtitle-sanskrit {
+      font-family: var(--font-devanagari);
+      font-size: clamp(0.92rem, 3.4vw, 1.08rem);
+      color: var(--color-saffron);
+      margin-bottom: clamp(0.75rem, 2.5vw, 1rem);
+      font-weight: 600;
+      line-height: 1.4;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .error-description {
+      font-size: clamp(0.85rem, 2.5vw, 0.94rem);
+      color: #554D47;
+      line-height: 1.6;
+      margin-bottom: clamp(1.2rem, 3.5vw, 1.6rem);
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      width: 100%;
+      margin-bottom: clamp(1.2rem, 3.5vw, 1.6rem);
+    }
+
+    @media (min-width: 460px) {
+      .action-group {
+        flex-direction: row;
+        justify-content: center;
+      }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.78rem 1.4rem;
+      min-height: 44px;
+      font-size: clamp(0.86rem, 2.5vw, 0.94rem);
+      font-weight: 600;
+      border-radius: 12px;
+      text-decoration: none;
+      transition: all 0.22s ease;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    @media (min-width: 460px) {
+      .btn {
+        width: auto;
+        min-width: 155px;
+      }
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--color-temple-red) 0%, #7A1F1F 100%);
+      color: #FFF9F0;
+      box-shadow: 0 4px 14px rgba(90, 23, 23, 0.28);
+    }
+
+    .btn-primary:hover, .btn-primary:active {
+      background: linear-gradient(135deg, #421010 0%, var(--color-temple-red) 100%);
+      box-shadow: 0 6px 20px rgba(90, 23, 23, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #FFF;
+      color: var(--color-temple-red);
+      border: 1.5px solid rgba(184, 137, 53, 0.4);
+    }
+
+    .btn-secondary:hover, .btn-secondary:active {
+      background: var(--color-stone-beige);
+      border-color: var(--color-gold);
+      transform: translateY(-1px);
+    }
+
+    /* Support Details Grid */
+    .support-box {
+      border-top: 1px dashed rgba(184, 137, 53, 0.35);
+      padding-top: clamp(1rem, 2.5vw, 1.25rem);
+      font-size: 0.85rem;
+      color: #6C625B;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      align-items: center;
+      width: 100%;
+    }
+
+    .support-heading {
+      font-weight: 600;
+      color: var(--color-temple-red);
+      font-size: clamp(0.78rem, 2.3vw, 0.86rem);
+      text-align: center;
+    }
+
+    .support-links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    @media (min-width: 480px) {
+      .support-links {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.65rem;
+      }
+    }
+
+    .support-link {
+      background: #FFF;
+      border: 1px solid rgba(184, 137, 53, 0.28);
+      padding: 0.52rem 0.85rem;
+      min-height: 38px;
+      border-radius: 10px;
+      color: var(--color-temple-red);
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      font-size: clamp(0.76rem, 2.3vw, 0.84rem);
+      transition: all 0.2s ease;
+      width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    @media (min-width: 480px) {
+      .support-link {
+        width: auto;
+        word-break: normal;
+      }
+    }
+
+    .support-link:hover, .support-link:active {
+      border-color: var(--color-saffron);
+      color: var(--color-saffron);
+      background: var(--color-warm-ivory);
+      transform: translateY(-1px);
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="error-container">
+    <!-- Official Logo & Branding -->
+    <div class="brand-header">
+      <div class="brand-logo-frame">
+        <img src="/assets/purohit-profile.png" alt="श्री त्र्यंबकेश्वर पुरोहित संघ Logo"
+          onerror="this.src='/assets/guruji.png'">
+      </div>
+      <div class="brand-titles">
+        <div class="brand-name-hi">श्री क्षेत्र त्र्यंबकेश्वर पुरोहित संघ</div>
+        <div class="brand-name-en">Tirtha Purohit Seva Portal</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="badge-sacred">
+        <span>॥ क्षम्यताम् - सेवा त्रुटि ॥</span>
+      </div>
+    </div>
+
+    <div class="error-code">500</div>
+    <h1 class="error-title">Internal Server Error</h1>
+    <p class="error-subtitle-sanskrit">सर्वर में तकनीकी समस्या आई है</p>
+
+    <p class="error-description">
+      An unexpected sanctum service interruption occurred. Our technical team has been notified and is actively
+      rectifying it.
+    </p>
+
+    <div class="action-group">
+      <button onclick="window.location.reload()" class="btn btn-primary" aria-label="Retry Page">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M8 16H3v5" />
+        </svg>
+        Retry Page
+      </button>
+      <a href="/" class="btn btn-secondary" aria-label="Return to Home">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+        Home
+      </a>
+    </div>
+
+    <div class="support-box">
+      <span class="support-heading">Urgent Puja Booking & Devotee Helpline</span>
+      <div class="support-links">
+        <a href="tel:+919689973967" class="support-link" title="Call Helpline">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+          </svg>
+          +91 96899 73967
+        </a>
+
+        <a href="https://wa.me/919689973967?text=Namaste%20Guruji,%20I%20am%20facing%20an%20issue%20with%20Puja%20booking"
+          target="_blank" rel="noopener noreferrer" class="support-link" title="WhatsApp Guruji">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366">
+            <path
+              d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 6.46 17.5 2 12.04 2M12.04 20.15C10.56 20.15 9.11 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.8 13.47 3.8 11.91C3.8 7.37 7.5 3.67 12.04 3.67C14.24 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15Z" />
+          </svg>
+          WhatsApp
+        </a>
+
+        <a href="mailto:trimbak.tirthapurohit@gmail.com" class="support-link" title="Email Support">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+          trimbak.tirthapurohit@gmail.com
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

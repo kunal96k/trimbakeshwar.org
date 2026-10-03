@@ -63,7 +63,6 @@ export const TIME_SLOT_OPTIONS: string[] = [
 ];
 
 export const LOCATION_OPTIONS: string[] = [
-  'Kushavarta Kund Ghat & Mandir Gate 2',
   'Shri Trimbakeshwar Anushthan Bhavan',
   'Ahilya Godavari Sangam Tirtha',
   'Yajman Private Dharamshala / Hall',
@@ -125,6 +124,9 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
   const [familyMembersCount, setFamilyMembersCount] = useState<number>(2);
   const [language, setLanguage] = useState<string>(LANGUAGE_OPTIONS[0]);
 
+  // Field-level errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   // Pooja & Guruji Selection (Tab 2)
   const [poojaType, setPoojaType] = useState<string>(ALL_POOJA_OPTIONS[0]);
   const [customPoojaName, setCustomPoojaName] = useState('');
@@ -144,6 +146,32 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
 
   if (!isOpen) return null;
 
+  // ── Utilities ────────────────────────────────────────────────────────────
+  const stripHtml = (v: string) =>
+    v.replace(/<[^>]*>/g, '').replace(/javascript\s*:/gi, '').replace(/on\w+\s*=/gi, '');
+
+  const wordCount = (v: string) =>
+    v.trim() === '' ? 0 : v.trim().split(/\s+/).length;
+
+  const validateDevoteeFields = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!devoteeName.trim() || devoteeName.trim().length < 2) {
+      errs.devoteeName = 'Full name is required (min 2 characters).';
+    } else if (devoteeName.trim().length > 120) {
+      errs.devoteeName = 'Name must not exceed 120 characters.';
+    } else if (/<[^>]*>/.test(devoteeName)) {
+      errs.devoteeName = 'Name must not contain HTML markup.';
+    }
+    const digits = phone.replace(/[^0-9]/g, '');
+    if (!phone.trim() || digits.length < 10) {
+      errs.phone = 'Mobile number must have at least 10 digits.';
+    } else if (digits.length > 20) {
+      errs.phone = 'Mobile number must not exceed 20 digits.';
+    }
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const resolvedPoojaName =
     poojaType === 'Other (Manual Entry)'
       ? (customPoojaName.trim() || 'Custom Vedic Vidhi')
@@ -151,9 +179,21 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateDevoteeFields()) {
+      setActiveTab('devotee');
+      setTabError('Please correct the errors highlighted below.');
+      return;
+    }
     if (!devoteeName.trim() || !phone.trim()) {
       setActiveTab('devotee');
       setTabError('Please provide Devotee Full Name and Mobile Number.');
+      return;
+    }
+
+    // Notes word-count guard
+    if (wordCount(notes) > 200) {
+      setActiveTab('payment');
+      setTabError(`Notes must not exceed 200 words (currently ${wordCount(notes)}).`);
       return;
     }
 
@@ -179,9 +219,9 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
 
     const newBooking: Booking = {
       id: newId,
-      devoteeName: devoteeName.trim(),
-      phone: phone.trim().startsWith('+91') ? phone.trim() : `+91 ${phone.trim()}`,
-      email: email.trim() || undefined,
+      devoteeName: stripHtml(devoteeName.trim()),
+      phone: stripHtml(phone.trim().startsWith('+91') ? phone.trim() : `+91 ${phone.trim()}`),
+      email: email.trim() ? stripHtml(email.trim()) : undefined,
       poojaType: resolvedPoojaName,
       date,
       time,
@@ -388,25 +428,37 @@ export const NewBookingModal: React.FC<NewBookingModalProps> = ({
                     required
                     placeholder="e.g. Ramesh Vithal Tambat"
                     value={devoteeName}
-                    onChange={(e) => setDevoteeName(e.target.value)}
-                    className="w-full bg-black/50 border border-amber-500/30 rounded-xl px-3.5 py-2.5 text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-400 text-xs transition-colors"
+                    onChange={(e) => { setDevoteeName(e.target.value); if (fieldErrors.devoteeName) setFieldErrors(p => ({...p, devoteeName: ''})); }}
+                    className={`w-full bg-black/50 border rounded-xl px-3.5 py-2.5 text-stone-100 placeholder-stone-500 focus:outline-none text-xs transition-colors ${fieldErrors.devoteeName ? 'border-rose-500 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'}`}
                   />
+                  {fieldErrors.devoteeName && (
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {fieldErrors.devoteeName}
+                    </p>
+                  )}
                 </div>
 
                 {/* Column 2: Mobile Number */}
                 <div>
                   <label className="block text-stone-300 font-medium mb-1.5 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Mobile Number (WhatsApp) *</span>
+                    <span>Mobile Number (WhatsApp) * <span className="text-stone-500">(10–20 digits)</span></span>
                   </label>
                   <input
                     type="tel"
                     required
                     placeholder="e.g. +91 98234 12345"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-black/50 border border-amber-500/30 rounded-xl px-3.5 py-2.5 text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-400 text-xs transition-colors"
+                    onChange={(e) => { setPhone(e.target.value); if (fieldErrors.phone) setFieldErrors(p => ({...p, phone: ''})); }}
+                    className={`w-full bg-black/50 border rounded-xl px-3.5 py-2.5 text-stone-100 placeholder-stone-500 focus:outline-none text-xs transition-colors ${fieldErrors.phone ? 'border-rose-500 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'}`}
                   />
+                  {fieldErrors.phone && (
+                    <p className="text-[11px] text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {fieldErrors.phone}
+                    </p>
+                  )}
                 </div>
 
                 {/* Column 3: Email Address */}

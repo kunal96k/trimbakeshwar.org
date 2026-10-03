@@ -1,0 +1,32 @@
+# Robots.txt for Shri Trimbakeshwar Jyotirlinga & Purohit Seva
+User-agent: *
+Allow: /
+Allow: /puja
+Allow: /puja/*
+Allow: /guruji
+Allow: /temple
+Allow: /jyotirlinga
+Allow: /darshan
+Allow: /sacred-places
+Allow: /festivals
+Allow: /articles
+Allow: /articles/*
+Allow: /gallery
+Allow: /about
+Allow: /contact
+Allow: /faqs
+Allow: /travel
+Allow: /temple-guide
+
+# Disallow admin and internal API routes
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+Disallow: /api/
+Disallow: /api/*
+
+# Crawl Delay
+Crawl-delay: 1
+
+# Sitemaps
+Sitemap: https://www.tirthapurohit.in/sitemap.xml

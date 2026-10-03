@@ -4,14 +4,19 @@ interface GurujiAvatarProps {
   size?: 'sm' | 'md' | 'lg';
   showOnlineStatus?: boolean;
   className?: string;
+  src?: string;
+  alt?: string;
 }
 
 export const GurujiAvatar: React.FC<GurujiAvatarProps> = ({
   size = 'md',
   showOnlineStatus = true,
   className = '',
+  src,
+  alt = 'Pt. Pravin Shambhu Deshmukh (Desai)',
 }) => {
   const dim = size === 'sm' ? 32 : size === 'md' ? 42 : 56;
+  const imageSource = src || '/assets/guruji.png';
 
   return (
     <div className={`relative inline-flex items-center justify-center select-none ${className}`}>
@@ -26,9 +31,12 @@ export const GurujiAvatar: React.FC<GurujiAvatarProps> = ({
       >
         <div className="w-full h-full rounded-full bg-gradient-to-b from-[#2B130E] to-[#140805] overflow-hidden flex items-center justify-center relative shadow-inner">
           <img
-            src="/assets/guruji.png"
-            alt="Pt. Pravin Shambhu Deshmukh"
+            src={imageSource}
+            alt={alt}
             className="w-full h-full object-cover object-top"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/assets/guruji.png';
+            }}
           />
         </div>
       </div>

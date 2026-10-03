@@ -3,6 +3,8 @@ import { InnerPageHero } from '../components/InnerPageHero';
 import { useNavigation } from '../context/NavigationContext';
 import { Clock, AlertCircle, ShieldCheck, CheckCircle2, Calendar, Flame } from 'lucide-react';
 import { MukutIcon } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getBreadcrumbSchema, getPlaceOfWorshipSchema } from '../utils/seoData';
 
 export function DarshanTimingsPage() {
   const { navigate, openBooking } = useNavigation();
@@ -18,8 +20,27 @@ export function DarshanTimingsPage() {
     { time: '08:30 PM – 09:00 PM', event: 'Shej Aarti & Temple Closing', type: 'Aarti', notes: 'Bedtime lullaby hymns; temple doors close at 09:00 PM' },
   ];
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple', path: '/temple' },
+    { name: 'Darshan & Aarti Timings', path: '/darshan' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="Trimbakeshwar Temple Darshan Timings, Aarti Schedule & VIP Pass Guide"
+        description="Official daily timetable of Shri Trimbakeshwar Jyotirlinga. Mangala Aarti at 5:30 AM, Sparsh Abhishek 6-9 AM, Monday Suvarna Mukut golden crown darshan at 4:30 PM."
+        canonicalPath="/darshan"
+        keywords={[
+          'Trimbakeshwar darshan timings',
+          'Trimbakeshwar aarti timetable',
+          'VIP darshan pass Trimbakeshwar',
+          'Suvarna Mukut darshan time',
+          'Sparsh darshan timings',
+        ]}
+        schema={[getPlaceOfWorshipSchema(), breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[
           { label: 'Temple', route: '/temple' },

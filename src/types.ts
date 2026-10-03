@@ -155,6 +155,7 @@ export interface ArticleItem {
   authorExpertise?: string[];
   editor?: string;
   publishedAt?: string;
+  createdAt?: string;
   updatedAt?: string;
   publishedDate?: string;
   date?: string;
@@ -245,6 +246,9 @@ export interface GalleryItem {
   event?: string;
   date?: string;
   year?: string;
+  createdAt?: string;
+  publishedAt?: string;
+  updatedAt?: string;
   photographer?: string;
   source?: string;
   copyright?: string;

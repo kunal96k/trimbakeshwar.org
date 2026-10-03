@@ -37,6 +37,7 @@ import {
 import { TrishulIcon, DivyaSparkleIcon, OmSymbol } from './Motifs';
 import { submitPoojaBooking, sendOtpApi, verifyOtpApi } from '../services/enquiryService';
 import { getTempleUpiConfig, UPI_CONFIG_UPDATED_EVENT, TempleUpiConfig } from '../services/templePaymentConfig';
+import { trackEvent } from '../utils/analytics';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export function BookingModal({
     gotra: '',
     familyMembers: '2',
     language: 'Marathi',
-    poojaVenue: 'Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)',
+    poojaVenue: '',
     customPoojaAddress: '',
     specialNotes: '',
   });
@@ -455,8 +456,35 @@ export function BookingModal({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setPaymentScreenshot(result);
+      const rawDataUrl = event.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1000;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          setPaymentScreenshot(compressed);
+        } else {
+          setPaymentScreenshot(rawDataUrl);
+        }
+      };
+      img.onerror = () => setPaymentScreenshot(rawDataUrl);
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -515,8 +543,8 @@ export function BookingModal({
         poojaCategory: selectedVidhi?.category,
         scheduledDate: selectedDate,
         timeSlot: selectedTimeSlot,
-        location: chosenPoojaVenue,
-        poojaAddress: chosenPoojaVenue,
+        location: '',
+        poojaAddress: '',
         familyMembersCount: parseInt(yajmanData.familyMembers) || 2,
         advanceAmount: 1000,
         paymentMethod: paymentMethod,
@@ -532,9 +560,13 @@ export function BookingModal({
       } else {
         setBookingRefId(ref);
       }
+
+      // Track booking completion event in Google Analytics
+      trackEvent('complete_pooja_booking', 'booking_conversion', selectedVidhi?.name || 'Vedic Vidhi Puja', 1000);
     } catch (err) {
       console.warn('Booking API error, using fallback reference:', err);
       setBookingRefId(ref);
+      trackEvent('complete_pooja_booking_offline', 'booking_conversion', selectedVidhi?.name || 'Vedic Vidhi Puja', 1000);
     }
 
     setTransactionId(finalUtr);
@@ -789,10 +821,6 @@ export function BookingModal({
                 <div class="cell-label">UPI Transaction ID (UTR):</div>
                 <div class="cell-val" style="font-family: monospace;">${transactionId}</div>
               </div>
-              <div class="row">
-                <div class="cell-label">Pooja Performing Venue / Address:</div>
-                <div class="cell-val">${yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && yajmanData.customPoojaAddress ? yajmanData.customPoojaAddress : yajmanData.poojaVenue}</div>
-              </div>
               ${yajmanData.specialNotes ? `
               <div class="row">
                 <div class="cell-label">Devotee Sankalp Notes:</div>
@@ -840,7 +868,7 @@ export function BookingModal({
         `• Yajman: ${yajmanData.name} (Gotra: ${yajmanData.gotra || 'Kashyap'})\n` +
         `• Devotee Email: ${yajmanData.email}\n` +
         feeText +
-        `• Venue: Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar\n\n` +
+        `\n` +
         `Har Har Mahadev!`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
@@ -1414,46 +1442,6 @@ export function BookingModal({
                     <option value="5+">5+ Family Members</option>
                   </select>
                 </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-stone-700 uppercase mb-1">
-                    Pooja Performing Venue / Address (पूजा विधी ठिकाण)
-                  </label>
-                  <select
-                    value={yajmanData.poojaVenue}
-                    onChange={(e) => setYajmanData({ ...yajmanData, poojaVenue: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-300 bg-white focus:outline-none"
-                  >
-                    <option value="Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)">
-                      Kushavarta Kund Ghat & Mandir Gate 2, Trimbakeshwar (Traditional Shastric Kund Vidhi)
-                    </option>
-                    <option value="Guruji Shastric Ashram & Karyalaya, Trimbakeshwar">
-                      Guruji Shastric Ashram & Karyalaya, Trimbakeshwar
-                    </option>
-                    <option value="Ahilya Sangam & Trimbakeshwar Temple Complex">
-                      Ahilya Sangam & Trimbakeshwar Temple Complex
-                    </option>
-                    <option value="Other Custom Location / Griha Pravesh Site">
-                      Other Custom Location / Griha Pravesh Site (Enter Specific Address Below)
-                    </option>
-                  </select>
-                </div>
-
-                {yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && (
-                  <div className="sm:col-span-2">
-                    <label className="block font-bold text-[#5A1717] uppercase mb-1">
-                      Custom Pooja Venue Address *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter exact address where Vastu / Puja ritual will take place"
-                      value={yajmanData.customPoojaAddress}
-                      onChange={(e) => setYajmanData({ ...yajmanData, customPoojaAddress: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border-2 border-amber-500/50 bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-[#B88935]"
-                    />
-                  </div>
-                )}
 
                 <div className="sm:col-span-2">
                   <label className="block font-bold text-stone-700 uppercase mb-1">
@@ -2238,15 +2226,6 @@ export function BookingModal({
                       <span className="font-medium text-stone-800 text-right text-[11px] max-w-[240px] truncate">{yajmanData.address}</span>
                     </div>
                   )}
-
-                  <div className="flex justify-between items-start py-0.5 border-b border-stone-200/50">
-                    <span className="text-stone-600 shrink-0">Pooja Performing Venue:</span>
-                    <span className="font-semibold text-stone-800 text-right text-[11px] max-w-[240px]">
-                      {yajmanData.poojaVenue === 'Other Custom Location / Griha Pravesh Site' && yajmanData.customPoojaAddress
-                        ? yajmanData.customPoojaAddress
-                        : yajmanData.poojaVenue}
-                    </span>
-                  </div>
 
                   <div className="flex justify-between items-center py-0.5 border-b border-stone-200/50">
                     <span className="text-stone-600">UPI Transaction ID (UTR):</span>

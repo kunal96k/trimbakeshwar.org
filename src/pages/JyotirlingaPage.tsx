@@ -4,12 +4,33 @@ import { TWELVE_JYOTIRLINGAS } from '../data/siteData';
 import { useNavigation } from '../context/NavigationContext';
 import { Sparkles, MapPin, CheckCircle2, ArrowRight } from 'lucide-react';
 import { LotusIcon, ShankhaIcon, TrishulIcon } from '../components/Motifs';
+import { SEO } from '../components/SEO';
+import { getPlaceOfWorshipSchema, getBreadcrumbSchema } from '../utils/seoData';
 
 export function JyotirlingaPage() {
   const { navigate, openBooking } = useNavigation();
 
+  const breadcrumbsSchema = getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Temple', path: '/temple' },
+    { name: 'The Sacred Jyotirlinga', path: '/jyotirlinga' },
+  ]);
+
   return (
     <div className="bg-[#FBF6EA] text-[#211D19] min-h-screen pb-16">
+      <SEO
+        title="The Sacred Tridev Jyotirlinga of Trimbakeshwar | Brahma, Vishnu, Shiva Linga"
+        description="Learn the profound scriptural significance of Shri Trimbakeshwar Jyotirlinga, the unique shrine embodying Brahma, Vishnu, and Rudra situated on the banks of holy Gautami River."
+        canonicalPath="/jyotirlinga"
+        keywords={[
+          'Trimbakeshwar Jyotirlinga',
+          'Tridev Jyotirlinga',
+          '12 Jyotirlingas in India',
+          'Brahma Vishnu Maheshwar linga',
+          'Shiva Purana Trimbakeshwar',
+        ]}
+        schema={[getPlaceOfWorshipSchema(), breadcrumbsSchema]}
+      />
       <InnerPageHero
         breadcrumbs={[
           { label: 'Temple', route: '/temple' },
